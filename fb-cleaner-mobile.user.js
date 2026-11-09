@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      15
+// @version      16
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -15,7 +15,7 @@
 // Tap the gear (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '15';
+  document.documentElement.dataset.fbmcRunning = '16';
   // ---- settings ----
   const DEFAULTS = { follow: true, join: true, reels: true, suggestions: true, errors: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
@@ -123,7 +123,7 @@
 
   // ---- counter ----
   const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;right:76px;bottom:20px;z-index:9999;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.7);color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
+  box.style.cssText = 'position:fixed;right:12px;bottom:26px;max-width:calc(100vw - 80px);z-index:9999;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.7);color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
   const show = () => {
     if (!box.isConnected) document.body.appendChild(box);
     const n = ads + sugg;
