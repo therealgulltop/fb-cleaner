@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      14
+// @version      15
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -15,7 +15,7 @@
 // Tap the gear (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '14';
+  document.documentElement.dataset.fbmcRunning = '15';
   // ---- settings ----
   const DEFAULTS = { follow: true, join: true, reels: true, suggestions: true, errors: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
@@ -79,6 +79,14 @@
   };
 
   // ---- collapse / expand ----
+  // match Facebook's light or dark theme by the page's background brightness
+  const palette = () => {
+    const bg = [document.body, document.documentElement].map(e => getComputedStyle(e).backgroundColor).find(v => !/^rgba\(.*,\s*0\)$|transparent/.test(v));
+    const m = (bg && bg.match(/\d+/g)) || [255, 255, 255];
+    const dark = (+m[0] * 299 + +m[1] * 587 + +m[2] * 114) / 1000 < 128;
+    return dark ? { card: '#242526', text: '#e4e6eb', sub: '#b0b3b8', button: '#3a3b3c' }
+                : { card: '#ffffff', text: '#050505', sub: '#65676b', button: '#e4e6eb' };
+  };
   const collapse = (post, label, name) => {
     post.dataset.fbmc = 'hidden';
     const kids = [...post.children].filter(k => !k.classList.contains('fbmc-dbg'));
@@ -87,9 +95,15 @@
     post.style.height = 'auto';
     const bar = document.createElement('div');
     bar.className = 'fbmc-bar';
-    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;margin:4px 0;background:#242526;color:#b0b3b8;font:14px system-ui,sans-serif;border-radius:8px';
-    bar.innerHTML = '<span></span><button style="background:#3a3b3c;color:#e4e6eb;border:0;border-radius:6px;padding:4px 10px;font:inherit">Show</button>';
-    bar.firstChild.textContent = label + (name ? ': ' + name : '');
+    // same look as Facebook's own "Ad hidden" card on desktop: icon, bold title, name underneath, Undo button
+    const c = palette();
+    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;margin:4px 0;background:' + c.card + ';font:15px/1.3 system-ui,sans-serif;border-radius:8px';
+    bar.innerHTML = '<div style="display:flex;align-items:center;gap:12px;min-width:0"><span style="flex:none;width:24px;height:24px;border-radius:6px;text-align:center;font:bold 13px/24px system-ui,sans-serif"></span><div style="min-width:0"><div style="font-weight:600"></div><div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div></div></div><button style="flex:none;border:0;border-radius:6px;padding:8px 14px;font:600 15px system-ui,sans-serif">Undo</button>';
+    const icon = bar.firstChild.firstChild, title = bar.firstChild.lastChild.firstChild, sub = bar.firstChild.lastChild.lastChild;
+    icon.textContent = '\u2715'; icon.style.background = c.text; icon.style.color = c.card;
+    title.textContent = label; title.style.color = c.text;
+    sub.textContent = name; sub.style.color = c.sub; if (!name) sub.remove();
+    bar.lastChild.style.background = c.button; bar.lastChild.style.color = c.text;
     const expand = () => {
       bar.remove();
       kids.forEach(k => { k.style.display = k.dataset.fbmcDisp || ''; delete k.dataset.fbmcDisp; });
@@ -100,7 +114,7 @@
     bar.lastChild.addEventListener('click', e => { e.stopPropagation(); if (name) kept.add(name); expand(); post.dataset.fbmc = 'shown'; });
     post.prepend(bar);
   };
-  const LABEL = { ad: 'Ad hidden', follow: 'Suggested hidden', join: 'Group suggestion hidden', reels: 'Reels hidden', suggestions: 'Suggestions hidden' };
+  const LABEL = { ad: 'Ad hidden', follow: 'Suggestion hidden', join: 'Group suggestion hidden', reels: 'Reels hidden', suggestions: 'Suggestions hidden' };
   const act = (post, kind, name) => {
     post.dataset.fbmcKind = kind;
     if (!enabled(kind)) { post.dataset.fbmc = 'off'; return; }
