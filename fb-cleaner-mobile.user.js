@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      21
+// @version      22
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -15,7 +15,7 @@
 // Tap the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '21';
+  document.documentElement.dataset.fbmcRunning = '22';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -119,23 +119,24 @@
     return dark ? { card: '#242526', text: '#e4e6eb', sub: '#b0b3b8', button: '#3a3b3c' }
                 : { card: '#ffffff', text: '#050505', sub: '#65676b', button: '#e4e6eb' };
   };
+  // compact, low-key card that stands in for a hidden post:  [x] Label · name ............ [Undo]
+  const makeBar = (c, label, sub, onUndo) => {
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px 4px 10px;background:' + c.card + ';border-radius:8px;font:13px/20px system-ui,sans-serif;color:' + c.sub;
+    bar.innerHTML = '<span style="flex:none;width:16px;height:16px;border-radius:4px;text-align:center;font:bold 10px/16px system-ui,sans-serif"></span><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span><button style="flex:none;border:0;border-radius:6px;padding:2px 10px;font:600 12px/18px system-ui,sans-serif;cursor:pointer">Undo</button>';
+    const [icon, text, btn] = bar.children;
+    icon.textContent = '✕'; icon.style.background = c.sub; icon.style.color = c.card;
+    text.textContent = label + (sub ? ' · ' + sub : '');
+    btn.style.background = c.button; btn.style.color = c.sub;
+    btn.addEventListener('click', e => { e.stopPropagation(); onUndo(); });
+    return bar;
+  };
   const collapse = (post, label, name) => {
     post.dataset.fbmc = 'hidden';
     const kids = [...post.children].filter(k => !k.classList.contains('fbmc-dbg'));
     kids.forEach(k => { k.dataset.fbmcDisp = k.style.display; k.style.display = 'none'; });
     post.dataset.fbmcH = post.style.height;
     post.style.height = 'auto';
-    const bar = document.createElement('div');
-    bar.className = 'fbmc-bar';
-    // same look as Facebook's own "Ad hidden" card on desktop: icon, bold title, name underneath, Undo button
-    const c = palette();
-    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;margin:4px 0;background:' + c.card + ';font:15px/1.3 system-ui,sans-serif;border-radius:8px';
-    bar.innerHTML = '<div style="display:flex;align-items:center;gap:12px;min-width:0"><span style="flex:none;width:24px;height:24px;border-radius:6px;text-align:center;font:bold 13px/24px system-ui,sans-serif"></span><div style="min-width:0"><div style="font-weight:600"></div><div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div></div></div><button style="flex:none;border:0;border-radius:6px;padding:8px 14px;font:600 15px system-ui,sans-serif">Undo</button>';
-    const icon = bar.firstChild.firstChild, title = bar.firstChild.lastChild.firstChild, sub = bar.firstChild.lastChild.lastChild;
-    icon.textContent = '\u2715'; icon.style.background = c.text; icon.style.color = c.card;
-    title.textContent = label; title.style.color = c.text;
-    sub.textContent = name; sub.style.color = c.sub; if (!name) sub.remove();
-    bar.lastChild.style.background = c.button; bar.lastChild.style.color = c.text;
     const expand = () => {
       bar.remove();
       kids.forEach(k => { k.style.display = k.dataset.fbmcDisp || ''; delete k.dataset.fbmcDisp; });
@@ -143,7 +144,8 @@
       restore.delete(post);
     };
     restore.set(post, expand);
-    bar.lastChild.addEventListener('click', e => { e.stopPropagation(); if (name) kept.add(name); expand(); post.dataset.fbmc = 'shown'; });
+    const bar = makeBar(palette(), label, name, () => { if (name) kept.add(name); expand(); post.dataset.fbmc = 'shown'; });
+    bar.className = 'fbmc-bar'; bar.style.margin = '4px 0';
     post.prepend(bar);
   };
   const LABEL = { ad: 'Ad hidden', follow: 'Suggestion hidden', join: 'Group suggestion hidden', reels: 'Reels hidden', suggestions: 'Suggestions hidden' };
@@ -181,10 +183,10 @@
   gear.innerHTML = LOGO;
   gear.style.cssText = 'position:fixed;left:12px;bottom:20px;z-index:10000;width:36px;height:36px;padding:3px;box-sizing:border-box;border-radius:50%;background:#242526;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer;user-select:none';
   const panel = document.createElement('div');
-  panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:#242526;color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
+  panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.5);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v21</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v22</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
