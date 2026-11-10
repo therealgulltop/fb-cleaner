@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      26
+// @version      27
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -15,7 +15,7 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '26';
+  document.documentElement.dataset.fbcdRunning = '27';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -213,7 +213,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.5);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v26</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v27</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
@@ -271,7 +271,7 @@
       else if (sm && opt[sm[1].toLowerCase()]) sugg.add(k);
       else { x.dataset.adseen = now; stamp(x, (sm ? 'SUGG (setting off): ' : 'POST: ') + read); return; }
       stamp(x, (ads.has(k) ? 'AD: ' : 'SUGG: ') + read);
-      if (!kept.has(name(x))) { x.dataset.adhit = 1; x.click(); }
+      if (!kept.has(name(x))) { const s = x.closest('[data-virtualized]'); if (s) s.dataset.fbcdWhy = ads.has(k) ? 'ad' : sm[1].toLowerCase(); x.dataset.adhit = 1; x.click(); }
     });
     show();
   };
@@ -298,8 +298,8 @@
       if (!undo) { if (mine) mine.remove(); return; } // post is back
       [...slot.children].forEach(k => { if (k !== mine && !k.classList.contains('fbcd-bar') && !('fbcdDisp' in k.dataset)) { k.dataset.fbcdDisp = k.style.display; k.style.display = 'none'; } });
       if (mine) return;
-      const isAd = /won.t see this ad/i.test(slot.textContent);
-      const bar = makeBar(palette(), isAd ? 'Ad hidden' : 'Post hidden', slot.dataset.adhint, () => {
+      const why = slot.dataset.fbcdWhy || (/Ad hidden|won.t see this ad/i.test(slot.textContent) ? 'ad' : '');
+      const bar = makeBar(palette(), { ad: 'Ad hidden', follow: 'Suggestion hidden', join: 'Group suggestion hidden' }[why] || 'Post hidden', slot.dataset.adhint, () => {
         bar.remove();
         slot.querySelectorAll(':scope > [data-fbcd-disp]').forEach(k => { k.style.display = k.dataset.fbcdDisp || ''; delete k.dataset.fbcdDisp; });
         undo.click();
