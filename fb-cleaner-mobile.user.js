@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      16
+// @version      17
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -15,7 +15,29 @@
 // Tap the gear (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '16';
+  document.documentElement.dataset.fbmcRunning = '17';
+  // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
+  const mismatch = (want, file) => {
+    const k = 'fbc-mismatch-' + want;
+    try { if (localStorage.getItem(k)) return; } catch (e) {}
+    if (document.querySelector('.fbc-mismatch')) return;
+    const b = document.createElement('div');
+    b.className = 'fbc-mismatch';
+    b.style.cssText = 'position:fixed;left:12px;right:12px;top:12px;z-index:10001;max-width:560px;margin:0 auto;padding:12px 14px;border-radius:10px;background:#242526;color:#e4e6eb;font:14px/1.4 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:flex;gap:12px;align-items:center';
+    b.innerHTML = '<div style="flex:1"></div><a target="_blank" rel="noopener" style="flex:none;background:#0866ff;color:#fff;border-radius:6px;padding:8px 12px;font-weight:600;text-decoration:none">Install</a><span role="button" title="Dismiss" style="flex:none;cursor:pointer;color:#b0b3b8;font-size:18px;padding:0 4px">✕</span>';
+    b.firstChild.textContent = 'FB Cleaner: this is Facebook’s ' + (want === 'Mobile' ? 'phone' : 'computer') + ' layout, but only FB Cleaner (' + (want === 'Mobile' ? 'Desktop' : 'Mobile') + ') is installed here.  Install FB Cleaner (' + want + ') to clean this page.';
+    b.children[1].href = 'https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/' + file;
+    b.lastChild.addEventListener('click', () => { b.remove(); try { localStorage.setItem(k, '1'); } catch (e) {} });
+    document.body.appendChild(b);
+  };
+  // this is the computer layout and the desktop script isn't running (older desktop versions set no flag, so also look for their counter)
+  [4000, 10000].forEach(ms => setTimeout(() => {
+    if (document.querySelector('[data-mcomponent]') || document.documentElement.dataset.fbcdRunning) return;
+    if (innerWidth < 600 || !document.querySelector('[role="banner"],[role="navigation"],[role="main"]')) return; // not a Facebook page we recognize yet
+    if ([...document.body.children].some(c => /^Ads \d+ \+ Suggested/.test(c.textContent || ''))) return;
+    mismatch('Desktop', 'fb-cleaner-desktop.user.js');
+  }, ms));
+
   // ---- settings ----
   const DEFAULTS = { follow: true, join: true, reels: true, suggestions: true, errors: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
