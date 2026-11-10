@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      18
+// @version      19
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -12,10 +12,10 @@
 // ==/UserScript==
 // For Facebook's MOBILE layout only (does nothing on the desktop layout).
 // Collapses ads, Follow/Join suggestions and the Reels tray on screen only -- Facebook is not told.
-// Tap the gear (bottom-left) for settings; they're remembered in this browser.
+// Tap the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '18';
+  document.documentElement.dataset.fbmcRunning = '19';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -152,7 +152,7 @@
 
   // ---- counter ----
   const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;right:12px;bottom:26px;max-width:calc(100vw - 80px);z-index:9999;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.7);color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
+  box.style.cssText = 'position:fixed;left:56px;bottom:27px;max-width:calc(100vw - 68px);z-index:9999;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.7);color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
   const show = () => {
     if (!box.isConnected) document.body.appendChild(box);
     const n = ads + sugg;
@@ -170,21 +170,33 @@
     if (d.textContent !== m) d.textContent = m;
   };
 
-  // ---- settings button + panel ----
+  const OPTIONS = [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['debug', 'Debug labels']];
+  // ---- settings button (the FB Cleaner logo) + panel ----
+  const LOGO = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block"><circle cx="50" cy="50" r="42" fill="none" stroke="#e0245e" stroke-width="9"/><line x1="69" y1="31" x2="31" y2="69" stroke="#e0245e" stroke-width="9" stroke-linecap="round"/><circle cx="34" cy="36" r="8" fill="none" stroke="#31a24c" stroke-width="6"/><circle cx="66" cy="64" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/></svg>';
   const gear = document.createElement('div');
-  gear.textContent = '\u2699';
-  gear.style.cssText = 'position:fixed;left:12px;bottom:20px;z-index:10000;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;font:20px/36px system-ui,sans-serif;text-align:center;cursor:pointer;user-select:none';
+  gear.title = 'FB Cleaner settings';
+  gear.innerHTML = LOGO;
+  gear.style.cssText = 'position:fixed;left:12px;bottom:20px;z-index:10000;width:36px;height:36px;padding:3px;box-sizing:border-box;border-radius:50%;background:#242526;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer;user-select:none';
   const panel = document.createElement('div');
   panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:#242526;color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
-  [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['debug', 'Debug labels']].forEach(([k, text]) => {
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v19</span>';
+  panel.appendChild(head);
+  // [setting, label, parent setting for an indented sub-option]
+  const boxes = {};
+  const syncSubs = () => OPTIONS.forEach(([k, , parent]) => { if (parent) { boxes[k].disabled = !opt[parent]; boxes[k].parentElement.style.opacity = opt[parent] ? '' : '.5'; } });
+  OPTIONS.forEach(([k, text, parent]) => {
     const row = document.createElement('label');
-    row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer';
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer' + (parent ? ';padding-left:30px' : '');
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.checked = !!opt[k]; cb.style.cssText = 'width:20px;height:20px';
-    cb.addEventListener('change', () => { opt[k] = cb.checked; save(); applySettings(k); });
+    cb.addEventListener('change', () => { opt[k] = cb.checked; save(); syncSubs(); applySettings(k); });
     row.append(cb, document.createTextNode(text));
     panel.appendChild(row);
+    boxes[k] = cb;
   });
+  syncSubs();
   gear.addEventListener('click', e => { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
   const applySettings = k => {
     if (k === 'debug' && !opt.debug) document.querySelectorAll('.fbmc-dbg').forEach(d => d.remove());
