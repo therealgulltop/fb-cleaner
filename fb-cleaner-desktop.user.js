@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      22
+// @version      23
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -15,7 +15,7 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '22';
+  document.documentElement.dataset.fbcdRunning = '23';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -40,9 +40,12 @@
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
   const save = () => { try { localStorage.setItem('fbmc-settings', JSON.stringify(opt)); } catch (e) {} };
   const opt = load();
-  // ---- open the Friends feed instead of the main feed when Facebook's home page loads ----
-  // (skipped if we already did it in the last 10 seconds, so a site that drops the filter can't cause a reload loop)
-  if (opt.friends && location.pathname === '/' && !/[?&](filter|sk)=/.test(location.search)) {
+  // ---- open the Friends feed instead of the main feed when you arrive at Facebook's home page ----
+  // Only on arrival from outside Facebook (typed address, bookmark, new tab, link from another site), so clicking
+  // Home inside Facebook still gets you the main feed.  Skipped if we already did it in the last 10 seconds, so a
+  // site that drops the filter can't cause a reload loop.
+  const fromFacebook = /^https:\/\/([a-z0-9-]+\.)*facebook\.com\//.test(document.referrer);
+  if (opt.friends && !fromFacebook && location.pathname === '/' && !/[?&](filter|sk)=/.test(location.search)) {
     let last = 0;
     try { last = +sessionStorage.getItem('fbc-friends-at') || 0; sessionStorage.setItem('fbc-friends-at', Date.now()); } catch (e) {}
     if (Date.now() - last > 10000) { location.replace('/?filter=friends&sk=h_chr'); return; }
@@ -199,7 +202,7 @@
   };
 
   // ---- settings button (the FB Cleaner logo) + panel ----
-  const LOGO = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block"><circle cx="50" cy="50" r="42" fill="none" stroke="#e0245e" stroke-width="9"/><line x1="69" y1="31" x2="31" y2="69" stroke="#e0245e" stroke-width="9" stroke-linecap="round"/><circle cx="34" cy="36" r="8" fill="none" stroke="#31a24c" stroke-width="6"/><circle cx="66" cy="64" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/></svg>';
+  const LOGO = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block"><circle cx="50" cy="50" r="42" fill="none" stroke="#e0245e" stroke-width="9"/><line x1="69" y1="31" x2="31" y2="69" stroke="#e0245e" stroke-width="9" stroke-linecap="round"/><circle cx="34" cy="36" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/><circle cx="66" cy="64" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/></svg>';
   const gear = document.createElement('div');
   gear.title = 'FB Cleaner settings';
   gear.innerHTML = LOGO;
@@ -208,7 +211,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:#242526;color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v22</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v23</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
