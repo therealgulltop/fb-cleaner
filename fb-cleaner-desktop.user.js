@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      20
+// @version      21
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -15,7 +15,7 @@
 // Click the gear (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '20';
+  document.documentElement.dataset.fbcdRunning = '21';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -36,10 +36,17 @@
   }, ms));
 
   // ---- settings (same names and storage as the mobile script) ----
-  const DEFAULTS = { follow: true, join: true, reels: true, suggestions: true, errors: true, debug: false };
+  const DEFAULTS = { friends: true, follow: true, join: true, reels: true, suggestions: true, errors: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
   const save = () => { try { localStorage.setItem('fbmc-settings', JSON.stringify(opt)); } catch (e) {} };
   const opt = load();
+  // ---- open the Friends feed instead of the main feed when Facebook's home page loads ----
+  // (skipped if we already did it in the last 10 seconds, so a site that drops the filter can't cause a reload loop)
+  if (opt.friends && location.pathname === '/' && !/[?&](filter|sk)=/.test(location.search)) {
+    let last = 0;
+    try { last = +sessionStorage.getItem('fbc-friends-at') || 0; sessionStorage.setItem('fbc-friends-at', Date.now()); } catch (e) {}
+    if (Date.now() - last > 10000) { location.replace('/?filter=friends&sk=h_chr'); return; }
+  }
 
   const AD = /(^|\s)(Ad|Sponsored)(\s|·|$)/, SUGG = /·\s*(Follow|Join)\s*$/;
   const MSG = /^(You won.t see this ad again\.?|Why aren.t you interested\?)$/;
@@ -173,7 +180,7 @@
   gear.style.cssText = 'position:fixed;left:12px;bottom:20px;z-index:10000;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;font:20px/36px system-ui,sans-serif;text-align:center;cursor:pointer;user-select:none';
   const panel = document.createElement('div');
   panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:#242526;color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
-  [['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['debug', 'Debug labels']].forEach(([k, text]) => {
+  [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['debug', 'Debug labels']].forEach(([k, text]) => {
     const row = document.createElement('label');
     row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer';
     const cb = document.createElement('input');
