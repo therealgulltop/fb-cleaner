@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      24
+// @version      25
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -15,7 +15,7 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '24';
+  document.documentElement.dataset.fbcdRunning = '25';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -52,7 +52,6 @@
   }
 
   const AD = /(^|\s)(Ad|Sponsored)(\s|·|$)/, SUGG = /·\s*(Follow|Join)\s*$/;
-  const MSG = /^(You won.t see this ad again\.?|Why aren.t you interested\?)$/;
   const SUGG_BLOCK = /^(Your group suggestions|Suggested for you|People you may know|Suggested groups|Groups you might like|Pages you may like|Suggested pages)\b/i;
   const REELS = /^(Reels|Reels and short videos)$/i;
   const kept = new Set(), posts = new Set(), ads = new Set(), sugg = new Set();
@@ -121,28 +120,30 @@
                 : { card: '#ffffff', text: '#050505', sub: '#65676b', button: '#e4e6eb' };
   };
   const restore = new WeakMap();
+  // compact, low-key card that stands in for a hidden post:  [x] Label · name ............ [Undo]
+  const makeBar = (c, label, sub, onUndo) => {
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px 4px 10px;background:' + c.card + ';border-radius:8px;font:13px/20px system-ui,sans-serif;color:' + c.sub;
+    bar.innerHTML = '<span style="flex:none;width:16px;height:16px;border-radius:4px;text-align:center;font:bold 10px/16px system-ui,sans-serif"></span><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span><button style="flex:none;border:0;border-radius:6px;padding:2px 10px;font:600 12px/18px system-ui,sans-serif;cursor:pointer">Undo</button>';
+    const [icon, text, btn] = bar.children;
+    icon.textContent = '✕'; icon.style.background = c.sub; icon.style.color = c.card;
+    text.textContent = label + (sub ? ' · ' + sub : '');
+    btn.style.background = c.button; btn.style.color = c.sub;
+    btn.addEventListener('click', e => { e.stopPropagation(); onUndo(); });
+    return bar;
+  };
   const collapse = (slot, label, sub) => {
     slot.dataset.fbcd = 'hidden';
     const kids = [...slot.children].filter(k => !k.classList.contains('fbcd-bar'));
     kids.forEach(k => { k.dataset.fbcdDisp = k.style.display; k.style.display = 'none'; });
-    const c = palette();
-    const bar = document.createElement('div');
-    bar.className = 'fbcd-bar';
-    // same look as Facebook's own "Ad hidden" card: icon, bold title, line underneath, Undo button
-    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;margin-bottom:0;background:' + c.card + ';border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,.2);font:15px/1.3 "Segoe UI Historic","Segoe UI",Helvetica,Arial,sans-serif';
-    bar.innerHTML = '<div style="display:flex;align-items:center;gap:12px;min-width:0"><span style="flex:none;width:24px;height:24px;border-radius:6px;text-align:center;font:bold 13px/24px system-ui,sans-serif"></span><div style="min-width:0"><div style="font-weight:600"></div><div style="font-size:13px"></div></div></div><button style="flex:none;border:0;border-radius:6px;padding:8px 14px;font:600 15px system-ui,sans-serif;cursor:pointer">Undo</button>';
-    const icon = bar.firstChild.firstChild, title = bar.firstChild.lastChild.firstChild, line = bar.firstChild.lastChild.lastChild;
-    icon.textContent = '✕'; icon.style.background = c.text; icon.style.color = c.card;
-    title.textContent = label; title.style.color = c.text;
-    line.textContent = sub || ''; line.style.color = c.sub; if (!sub) line.remove();
-    bar.lastChild.style.background = c.button; bar.lastChild.style.color = c.text;
     const expand = () => {
       bar.remove();
       kids.forEach(k => { k.style.display = k.dataset.fbcdDisp || ''; delete k.dataset.fbcdDisp; });
       restore.delete(slot);
     };
+    const bar = makeBar(palette(), label, sub, () => { expand(); slot.dataset.fbcd = 'shown'; });
+    bar.className = 'fbcd-bar';
     restore.set(slot, expand);
-    bar.lastChild.addEventListener('click', e => { e.stopPropagation(); expand(); slot.dataset.fbcd = 'shown'; });
     slot.prepend(bar);
   };
   // Facebook reuses feed slots as you scroll; if it dropped our card, un-hide what we hid and check the slot again
@@ -208,10 +209,10 @@
   gear.innerHTML = LOGO;
   gear.style.cssText = 'position:fixed;left:12px;bottom:20px;z-index:10000;width:36px;height:36px;padding:3px;box-sizing:border-box;border-radius:50%;background:#242526;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer;user-select:none';
   const panel = document.createElement('div');
-  panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:#242526;color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
+  panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.5);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v24</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v25</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
@@ -287,11 +288,23 @@
   let t = 0;
   const tick = () => { if (!t) t = setTimeout(() => { t = 0; scan(); }, 120); };
 
-  // Swap the hidden-post blurb for the poster's name; rescan as the feed loads
+  // Facebook's own "Ad hidden" card is big; cover it with the same compact card (Facebook's Undo still does the undoing).
+  // Also rescans as the feed loads.
   new MutationObserver(() => {
     document.querySelectorAll('[data-adhint]').forEach(slot => {
-      const m = [...slot.querySelectorAll('span,div')].find(e => !e.childElementCount && MSG.test(e.textContent.trim()));
-      if (m) m.textContent = (/^Why/.test(m.textContent) ? 'Hidden: ' : '') + slot.dataset.adhint;
+      const undo = [...slot.querySelectorAll('[role="button"]')].find(b => b.textContent.trim() === 'Undo');
+      const mine = slot.querySelector(':scope > .fbcd-bar[data-fb]');
+      if (!undo) { if (mine) mine.remove(); return; } // post is back
+      [...slot.children].forEach(k => { if (k !== mine && !k.classList.contains('fbcd-bar') && !('fbcdDisp' in k.dataset)) { k.dataset.fbcdDisp = k.style.display; k.style.display = 'none'; } });
+      if (mine) return;
+      const isAd = /won.t see this ad/i.test(slot.textContent);
+      const bar = makeBar(palette(), isAd ? 'Ad hidden' : 'Post hidden', slot.dataset.adhint, () => {
+        bar.remove();
+        slot.querySelectorAll(':scope > [data-fbcd-disp]').forEach(k => { k.style.display = k.dataset.fbcdDisp || ''; delete k.dataset.fbcdDisp; });
+        undo.click();
+      });
+      bar.className = 'fbcd-bar'; bar.dataset.fb = '1';
+      slot.prepend(bar);
     });
     tick();
   }).observe(document.body, { childList: true, subtree: true });
