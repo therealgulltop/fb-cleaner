@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      23
+// @version      24
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -15,7 +15,7 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '23';
+  document.documentElement.dataset.fbcdRunning = '24';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -129,7 +129,7 @@
     const bar = document.createElement('div');
     bar.className = 'fbcd-bar';
     // same look as Facebook's own "Ad hidden" card: icon, bold title, line underneath, Undo button
-    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;margin-bottom:16px;background:' + c.card + ';border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,.2);font:15px/1.3 "Segoe UI Historic","Segoe UI",Helvetica,Arial,sans-serif';
+    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;margin-bottom:0;background:' + c.card + ';border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,.2);font:15px/1.3 "Segoe UI Historic","Segoe UI",Helvetica,Arial,sans-serif';
     bar.innerHTML = '<div style="display:flex;align-items:center;gap:12px;min-width:0"><span style="flex:none;width:24px;height:24px;border-radius:6px;text-align:center;font:bold 13px/24px system-ui,sans-serif"></span><div style="min-width:0"><div style="font-weight:600"></div><div style="font-size:13px"></div></div></div><button style="flex:none;border:0;border-radius:6px;padding:8px 14px;font:600 15px system-ui,sans-serif;cursor:pointer">Undo</button>';
     const icon = bar.firstChild.firstChild, title = bar.firstChild.lastChild.firstChild, line = bar.firstChild.lastChild.lastChild;
     icon.textContent = '✕'; icon.style.background = c.text; icon.style.color = c.card;
@@ -211,14 +211,14 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:#242526;color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v23</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v24</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
   const syncSubs = () => OPTIONS.forEach(([k, , parent]) => { if (parent) { boxes[k].disabled = !opt[parent]; boxes[k].parentElement.style.opacity = opt[parent] ? '' : '.5'; } });
   OPTIONS.forEach(([k, text, parent]) => {
     const row = document.createElement('label');
-    row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer' + (parent ? ';padding-left:30px' : '');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;color:#e4e6eb' + (parent ? ';padding-left:30px' : ''); // Facebook styles labels dim gray
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.checked = !!opt[k]; cb.style.cssText = 'width:20px;height:20px';
     cb.addEventListener('change', () => { opt[k] = cb.checked; save(); syncSubs(); applySettings(k); });
