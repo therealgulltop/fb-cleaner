@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      21
+// @version      22
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -12,10 +12,10 @@
 // For Facebook's DESKTOP layout (does nothing on the mobile layout).
 // Ads and Follow/Join posts are hidden with Facebook's own hide button.  Suggestion blocks, the Reels tray and
 // "Something went wrong" tiles have no hide button, so they're collapsed on screen only.
-// Click the gear (bottom-left) for settings; they're remembered in this browser.
+// Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '21';
+  document.documentElement.dataset.fbcdRunning = '22';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -36,7 +36,7 @@
   }, ms));
 
   // ---- settings (same names and storage as the mobile script) ----
-  const DEFAULTS = { friends: true, follow: true, join: true, reels: true, suggestions: true, errors: true, debug: false };
+  const DEFAULTS = { friends: true, sidebar: true, widen: true, follow: true, join: true, reels: true, suggestions: true, errors: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
   const save = () => { try { localStorage.setItem('fbmc-settings', JSON.stringify(opt)); } catch (e) {} };
   const opt = load();
@@ -95,7 +95,7 @@
 
   // ---- counter ----
   const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;right:76px;bottom:20px;z-index:9999;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.7);color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
+  box.style.cssText = 'position:fixed;left:56px;bottom:27px;z-index:9999;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.7);color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
   const show = () => {
     if (!box.isConnected) document.body.appendChild(box);
     const n = ads.size + sugg.size, p = posts.size;
@@ -105,7 +105,7 @@
 
   // ---- debug labels ----
   const st = document.createElement('style');
-  st.textContent = '[data-adread]::before{content:attr(data-adread);display:block;padding:2px 6px;font:11px/1.3 monospace;color:#ff0;background:#600;white-space:pre-wrap}';
+  st.textContent = '[data-adread]::before{content:attr(data-adread);display:block;padding:2px 6px;font:11px/1.3 monospace;color:#ff0;background:#600;white-space:pre-wrap}[data-fbcd-wide]{width:100%!important;max-width:none!important}';
   document.head.appendChild(st);
   const stamp = (el, msg) => { const s = opt.debug && el.closest('[data-virtualized]'); if (s && s.dataset.adread !== msg) s.dataset.adread = msg; };
 
@@ -174,21 +174,56 @@
     });
   };
 
-  // ---- settings button + panel ----
+  const OPTIONS = [['friends', 'Open the Friends feed'], ['sidebar', 'Hide Sponsored ads in the right column'], ['widen', 'Widen the feed into that space', 'sidebar'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['debug', 'Debug labels']];
+  // ---- right column: hide its Sponsored ads; optionally drop the whole column and widen the feed into the space ----
+  const OTHER_RAIL = /^(Contacts|Birthdays|Group chats|Community chats|Friend requests|Your Pages and profiles)$/;
+  const bare = el => el.textContent.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim(); // Facebook pads labels with invisible characters
+  const rail = () => {
+    const c = document.querySelector('[role="complementary"]');
+    const sp = c && [...c.querySelectorAll('span,h2,h3')].find(x => bare(x) === 'Sponsored');
+    let wide = false;
+    if (sp) { // climb to the Sponsored section, stopping before anything that also holds Contacts, Birthdays, etc.
+      let s = sp;
+      while (s.parentElement && s.parentElement !== c && ![...s.parentElement.querySelectorAll('span,h2,h3')].some(x => OTHER_RAIL.test(bare(x)))) s = s.parentElement;
+      s.dataset.fbcdSponsored = '1';
+      wide = opt.sidebar && opt.widen;
+    }
+    document.querySelectorAll('[data-fbcd-sponsored]').forEach(s => { s.style.display = opt.sidebar ? 'none' : ''; });
+    document.querySelectorAll('[data-fbcd-rail]').forEach(r => { if (!wide || r !== c) { r.style.display = ''; delete r.dataset.fbcdRail; } });
+    const main = document.querySelector('[role="main"]');
+    if (wide && main) {
+      c.dataset.fbcdRail = '1'; c.style.display = 'none';
+      if (!main.dataset.fbcdWide) main.dataset.fbcdWide = '1';
+      main.querySelectorAll('[data-virtualized]').forEach(slot => { for (let e = slot.parentElement; e && e !== main; e = e.parentElement) if (!e.dataset.fbcdWide) e.dataset.fbcdWide = '1'; });
+    } else document.querySelectorAll('[data-fbcd-wide]').forEach(e => delete e.dataset.fbcdWide);
+  };
+
+  // ---- settings button (the FB Cleaner logo) + panel ----
+  const LOGO = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block"><circle cx="50" cy="50" r="42" fill="none" stroke="#e0245e" stroke-width="9"/><line x1="69" y1="31" x2="31" y2="69" stroke="#e0245e" stroke-width="9" stroke-linecap="round"/><circle cx="34" cy="36" r="8" fill="none" stroke="#31a24c" stroke-width="6"/><circle cx="66" cy="64" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/></svg>';
   const gear = document.createElement('div');
-  gear.textContent = '⚙';
-  gear.style.cssText = 'position:fixed;left:12px;bottom:20px;z-index:10000;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;font:20px/36px system-ui,sans-serif;text-align:center;cursor:pointer;user-select:none';
+  gear.title = 'FB Cleaner settings';
+  gear.innerHTML = LOGO;
+  gear.style.cssText = 'position:fixed;left:12px;bottom:20px;z-index:10000;width:36px;height:36px;padding:3px;box-sizing:border-box;border-radius:50%;background:#242526;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer;user-select:none';
   const panel = document.createElement('div');
   panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:#242526;color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
-  [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['debug', 'Debug labels']].forEach(([k, text]) => {
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v22</span>';
+  panel.appendChild(head);
+  // [setting, label, parent setting for an indented sub-option]
+  const boxes = {};
+  const syncSubs = () => OPTIONS.forEach(([k, , parent]) => { if (parent) { boxes[k].disabled = !opt[parent]; boxes[k].parentElement.style.opacity = opt[parent] ? '' : '.5'; } });
+  OPTIONS.forEach(([k, text, parent]) => {
     const row = document.createElement('label');
-    row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer';
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer' + (parent ? ';padding-left:30px' : '');
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.checked = !!opt[k]; cb.style.cssText = 'width:20px;height:20px';
-    cb.addEventListener('change', () => { opt[k] = cb.checked; save(); applySettings(k); });
+    cb.addEventListener('change', () => { opt[k] = cb.checked; save(); syncSubs(); applySettings(k); });
     row.append(cb, document.createTextNode(text));
     panel.appendChild(row);
+    boxes[k] = cb;
   });
+  syncSubs();
   gear.addEventListener('click', e => { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
   const applySettings = k => {
     if (k === 'debug' && !opt.debug) document.querySelectorAll('[data-adread]').forEach(s => delete s.dataset.adread);
@@ -208,6 +243,7 @@
     if (!gear.isConnected) document.body.append(gear, panel);
     heal();
     checkBlocks();
+    rail();
     const now = Date.now();
     document.querySelectorAll('[aria-label^="Hide post"]:not([data-adhit])').forEach(x => {
       if (now - (+x.dataset.adseen || 0) < 1000) return; // checked <1s ago; skip to keep passes cheap
@@ -243,7 +279,7 @@
     if (/^Hide post by /.test(t.getAttribute('aria-label') || '')) slot.dataset.adhint = name(t);
     else if (/^(Undo|Unhide post)$/.test(t.textContent.trim()) && slot.dataset.adhint) kept.add(slot.dataset.adhint);
   }, true);
-  document.addEventListener('click', e => { if (!panel.contains(e.target) && e.target !== gear) panel.style.display = 'none'; });
+  document.addEventListener('click', e => { if (!panel.contains(e.target) && !gear.contains(e.target)) panel.style.display = 'none'; });
 
   let t = 0;
   const tick = () => { if (!t) t = setTimeout(() => { t = 0; scan(); }, 120); };
