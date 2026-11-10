@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      24
+// @version      25
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -15,7 +15,7 @@
 // Tap the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '24';
+  document.documentElement.dataset.fbmcRunning = '25';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -137,16 +137,18 @@
     const kids = [...post.children].filter(k => !k.classList.contains('fbmc-dbg'));
     kids.forEach(k => { k.dataset.fbmcDisp = k.style.display; k.style.display = 'none'; });
     post.dataset.fbmcH = post.style.height;
-    post.style.height = 'auto';
+    post.dataset.fbmcPad = post.style.padding;
+    post.style.height = 'auto'; post.style.padding = '0'; // just the bar's own padding, like the desktop card
     const expand = () => {
       bar.remove();
       kids.forEach(k => { k.style.display = k.dataset.fbmcDisp || ''; delete k.dataset.fbmcDisp; });
       post.style.height = post.dataset.fbmcH || ''; delete post.dataset.fbmcH;
+      post.style.padding = post.dataset.fbmcPad || ''; delete post.dataset.fbmcPad;
       restore.delete(post);
     };
     restore.set(post, expand);
     const bar = makeBar(palette(), label, name, () => { if (name) kept.add(name); expand(); post.dataset.fbmc = 'shown'; });
-    bar.className = 'fbmc-bar'; bar.style.margin = '4px 0';
+    bar.className = 'fbmc-bar';
     post.prepend(bar);
   };
   const LABEL = { ad: 'Ad hidden', follow: 'Suggestion hidden', join: 'Group suggestion hidden', reels: 'Reels hidden', suggestions: 'Suggestions hidden' };
@@ -187,7 +189,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.5);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v24</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v25</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
@@ -221,7 +223,7 @@
       const p = k.parentElement;
       if (p && p.querySelector(':scope > .fbmc-bar')) return;
       k.style.display = k.dataset.fbmcDisp || ''; delete k.dataset.fbmcDisp;
-      if (p) { if ('fbmcH' in p.dataset) { p.style.height = p.dataset.fbmcH; delete p.dataset.fbmcH; } delete p.dataset.fbmc; restore.delete(p); }
+      if (p) { if ('fbmcH' in p.dataset) { p.style.height = p.dataset.fbmcH; delete p.dataset.fbmcH; } if ('fbmcPad' in p.dataset) { p.style.padding = p.dataset.fbmcPad; delete p.dataset.fbmcPad; } delete p.dataset.fbmc; restore.delete(p); }
     });
   };
   const quickCheck = post => {
