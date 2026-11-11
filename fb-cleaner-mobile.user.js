@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      32
+// @version      33
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -8,14 +8,38 @@
 // @match        https://www.facebook.com/*
 // @match        https://m.facebook.com/*
 // @run-at       document-idle
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      raw.githubusercontent.com
 // ==/UserScript==
 // For Facebook's MOBILE layout only (does nothing on the desktop layout).
 // Collapses ads, Follow/Join suggestions and the Reels tray on screen only -- Facebook is not told.
-// Tap the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
+// Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '32';
+  document.documentElement.dataset.fbmcRunning = '33';
+  // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
+  setTimeout(() => {
+    if (typeof GM_xmlhttpRequest !== 'function') return;
+    const VER = 33, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const tell = latest => {
+      if (!(latest > VER)) return;
+      try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
+      const b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:12px;right:12px;top:12px;z-index:10001;max-width:560px;margin:0 auto;padding:12px 14px;border-radius:10px;background:#242526;color:#e4e6eb;font:14px/1.4 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:flex;gap:12px;align-items:center';
+      b.innerHTML = '<div style="flex:1"></div><span role="button" title="Dismiss" style="flex:none;cursor:pointer;color:#b0b3b8;font-size:18px;padding:0 4px">✕</span>';
+      b.firstChild.textContent = 'FB Cleaner (Mobile) v' + latest + ' is out, but this tab is running v' + VER + '.  Update it in Tampermonkey if it hasn’t already, then close this tab and reopen Facebook.';
+      b.lastChild.addEventListener('click', () => { b.remove(); try { localStorage.setItem(KEY + '-dismissed', String(latest)); } catch (e) {} });
+      document.body.appendChild(b);
+    };
+    let c = null;
+    try { c = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+    if (c && Date.now() - c.at < 30 * 60000) return tell(c.v);
+    GM_xmlhttpRequest({ method: 'GET', url: 'https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js', onload: r => {
+      const m = /@version\s+(\d+)/.exec(r.responseText || ''); if (!m) return;
+      try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), v: +m[1] })); } catch (e) {}
+      tell(+m[1]);
+    } });
+  }, 5000);
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -161,11 +185,13 @@
 
   // ---- counter ----
   const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;left:56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;max-width:calc(100vw - 68px);z-index:9999;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.7);color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
+  box.style.cssText = 'position:fixed;right:56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;max-width:calc(100vw - 68px);z-index:9999;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.7);color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
   const show = () => {
     if (!box.isConnected) document.body.appendChild(box);
     const n = ads + sugg;
-    const s = `Ads ${ads} + Suggested ${sugg} + Reels ${reels} / Posts ${posts} -- ${posts ? Math.round(100 * n / posts) : 0}%`;
+    const pct = `${posts ? Math.round(100 * n / posts) : 0}%`;
+    // just the percentage until the menu is open
+    const s = panel.style.display === 'block' ? `Ads ${ads} + Suggested ${sugg} + Reels ${reels} / Posts ${posts} -- ${pct}` : pct;
     if (box.textContent !== s) box.textContent = s;
   };
 
@@ -185,12 +211,12 @@
   const gear = document.createElement('div');
   gear.title = 'FB Cleaner settings';
   gear.innerHTML = LOGO;
-  gear.style.cssText = 'position:fixed;left:12px;bottom:8px;z-index:10000;width:36px;height:36px;padding:3px;box-sizing:border-box;border-radius:50%;background:#242526;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer;user-select:none';
+  gear.style.cssText = 'position:fixed;right:12px;bottom:8px;z-index:10000;width:36px;height:36px;padding:3px;box-sizing:border-box;border-radius:50%;background:rgba(0,0,0,.7);box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer;user-select:none';
   const panel = document.createElement('div');
-  panel.style.cssText = 'position:fixed;left:12px;bottom:52px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
+  panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v32</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v33</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
@@ -217,7 +243,7 @@
   let taps = [];
   head.lastElementChild.addEventListener('click', () => { const now = Date.now(); taps = taps.filter(t => now - t < 2000).concat(now); if (taps.length >= 5) { taps = []; toggleDev(); } });
   syncDev(true);
-  gear.addEventListener('click', e => { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
+  gear.addEventListener('click', e => { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; show(); });
   const applySettings = k => {
     if (k === 'debug' && !opt.debug) document.querySelectorAll('.fbmc-dbg').forEach(d => d.remove());
     if (k === 'debug') { document.querySelectorAll('[data-fbmc="post"]').forEach(p => delete p.dataset.fbmc); }
