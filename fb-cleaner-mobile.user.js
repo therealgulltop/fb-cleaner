@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      33
+// @version      34
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -16,11 +16,11 @@
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '33';
+  document.documentElement.dataset.fbmcRunning = '34';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   setTimeout(() => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
-    const VER = 33, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 34, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER)) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -185,7 +185,7 @@
 
   // ---- counter ----
   const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;right:56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;max-width:calc(100vw - 68px);z-index:9999;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.7);color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
+  box.style.cssText = 'position:fixed;right:56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;max-width:calc(100vw - 68px);z-index:9999;padding:4px 10px;border-radius:8px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
   const show = () => {
     if (!box.isConnected) document.body.appendChild(box);
     const n = ads + sugg;
@@ -211,12 +211,12 @@
   const gear = document.createElement('div');
   gear.title = 'FB Cleaner settings';
   gear.innerHTML = LOGO;
-  gear.style.cssText = 'position:fixed;right:12px;bottom:8px;z-index:10000;width:36px;height:36px;padding:3px;box-sizing:border-box;border-radius:50%;background:rgba(0,0,0,.7);box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer;user-select:none';
+  gear.style.cssText = 'position:fixed;right:12px;bottom:8px;z-index:10000;width:36px;height:36px;padding:3px;box-sizing:border-box;border-radius:50%;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer;user-select:none';
   const panel = document.createElement('div');
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v33</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v34</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
