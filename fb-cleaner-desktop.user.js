@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      34
+// @version      35
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
 // @downloadURL  https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
 // @match        https://www.facebook.com/*
 // @run-at       document-idle
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      raw.githubusercontent.com
 // ==/UserScript==
 // For Facebook's DESKTOP layout (does nothing on the mobile layout).
 // Ads and Follow/Join posts are hidden with Facebook's own hide button.  Suggestion blocks, the Reels tray and
@@ -15,7 +16,30 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '34';
+  document.documentElement.dataset.fbcdRunning = '35';
+  // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
+  setTimeout(() => {
+    if (typeof GM_xmlhttpRequest !== 'function') return;
+    const VER = 35, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
+    const tell = latest => {
+      if (!(latest > VER)) return;
+      try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
+      const b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:12px;right:12px;top:12px;z-index:10001;max-width:560px;margin:0 auto;padding:12px 14px;border-radius:10px;background:#242526;color:#e4e6eb;font:14px/1.4 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:flex;gap:12px;align-items:center';
+      b.innerHTML = '<div style="flex:1"></div><span role="button" title="Dismiss" style="flex:none;cursor:pointer;color:#b0b3b8;font-size:18px;padding:0 4px">✕</span>';
+      b.firstChild.textContent = 'FB Cleaner (Desktop) v' + latest + ' is out, but this tab is running v' + VER + '.  Update it in Tampermonkey if it hasn’t already, then close this tab and reopen Facebook.';
+      b.lastChild.addEventListener('click', () => { b.remove(); try { localStorage.setItem(KEY + '-dismissed', String(latest)); } catch (e) {} });
+      document.body.appendChild(b);
+    };
+    let c = null;
+    try { c = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+    if (c && Date.now() - c.at < 30 * 60000) return tell(c.v);
+    GM_xmlhttpRequest({ method: 'GET', url: 'https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js', onload: r => {
+      const m = /@version\s+(\d+)/.exec(r.responseText || ''); if (!m) return;
+      try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), v: +m[1] })); } catch (e) {}
+      tell(+m[1]);
+    } });
+  }, 5000);
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -232,7 +256,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:52px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v34</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v35</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
