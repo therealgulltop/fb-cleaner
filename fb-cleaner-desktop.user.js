@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      28
+// @version      29
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -15,7 +15,7 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '28';
+  document.documentElement.dataset.fbcdRunning = '29';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -36,7 +36,7 @@
   }, ms));
 
   // ---- settings (same names and storage as the mobile script) ----
-  const DEFAULTS = { friends: true, sidebar: true, widen: true, follow: true, join: true, reels: true, suggestions: true, errors: true, debug: false };
+  const DEFAULTS = { friends: true, sidebar: true, widen: true, follow: true, join: true, reels: true, suggestions: true, errors: true, plain: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
   const save = () => { try { localStorage.setItem('fbmc-settings', JSON.stringify(opt)); } catch (e) {} };
   const opt = load();
@@ -179,7 +179,7 @@
     });
   };
 
-  const OPTIONS = [['friends', 'Open the Friends feed'], ['sidebar', 'Hide Sponsored ads in the right column'], ['widen', 'Widen the feed into that space', 'sidebar'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['debug', 'Debug labels']];
+  const OPTIONS = [['friends', 'Open the Friends feed'], ['sidebar', 'Hide Sponsored ads in the right column'], ['widen', 'Widen the feed into that space', 'sidebar'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['debug', 'Debug labels']];
   // ---- right column: hide its Sponsored ads; optionally drop the whole column and widen the feed into the space ----
   const OTHER_RAIL = /^(Contacts|Birthdays|Group chats|Community chats|Friend requests|Your Pages and profiles)$/;
   const bare = el => el.textContent.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim(); // Facebook pads labels with invisible characters
@@ -203,6 +203,24 @@
     } else document.querySelectorAll('[data-fbcd-wide]').forEach(e => delete e.dataset.fbcdWide);
   };
 
+  // ---- text posts on a colored/picture background: show the words as a normal post instead ----
+  const plain = () => {
+    document.querySelectorAll('.fbcd-plain').forEach(p => { const b = p.previousElementSibling; if (!b || !b.dataset.fbcdPlain || !opt.plain) { if (b && b.dataset.fbcdPlain) { b.style.display = ''; delete b.dataset.fbcdPlain; } p.remove(); } });
+    if (!opt.plain) return;
+    document.querySelectorAll('[data-virtualized] div[style*="background-image"]:not([data-fbcd-plain])').forEach(bg => {
+      if (!bg.querySelector('div[style*="font-size"]')) return; // only the big-text kind, not photos
+      const shownText = [...bg.children].find(k => getComputedStyle(k).position === 'absolute' && k.innerText.trim()); // FB draws the words twice; this is the visible copy
+      const words = (shownText || bg).innerText.trim();
+      if (!words) return;
+      const p = document.createElement('div');
+      p.className = 'fbcd-plain';
+      p.textContent = words;
+      p.style.cssText = 'color:' + palette().text + ';font:15px/1.34 system-ui,sans-serif;padding:4px 16px 12px;white-space:pre-wrap;overflow-wrap:anywhere';
+      bg.dataset.fbcdPlain = '1'; bg.style.display = 'none';
+      bg.after(p);
+    });
+  };
+
   // ---- settings button (the FB Cleaner logo) + panel ----
   const LOGO = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block"><circle cx="50" cy="50" r="42" fill="none" stroke="#e0245e" stroke-width="9"/><line x1="69" y1="31" x2="31" y2="69" stroke="#e0245e" stroke-width="9" stroke-linecap="round"/><circle cx="34" cy="36" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/><circle cx="66" cy="64" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/></svg>';
   const gear = document.createElement('div');
@@ -213,7 +231,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.5);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v28</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v29</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
@@ -249,6 +267,7 @@
     heal();
     checkBlocks();
     rail();
+    plain();
     const now = Date.now();
     document.querySelectorAll('[aria-label^="Hide post"]:not([data-adhit])').forEach(x => {
       if (now - (+x.dataset.adseen || 0) < 1000) return; // checked <1s ago; skip to keep passes cheap
