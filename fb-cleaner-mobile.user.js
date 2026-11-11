@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      26
+// @version      27
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -15,7 +15,7 @@
 // Tap the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '26';
+  document.documentElement.dataset.fbmcRunning = '27';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -39,7 +39,7 @@
   }, ms));
 
   // ---- settings ----
-  const DEFAULTS = { friends: true, follow: true, join: true, reels: true, suggestions: true, errors: true, debug: false };
+  const DEFAULTS = { friends: true, follow: true, join: true, reels: true, suggestions: true, errors: true, plain: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
   const save = () => { try { localStorage.setItem('fbmc-settings', JSON.stringify(opt)); } catch (e) {} };
   const opt = load();
@@ -178,7 +178,7 @@
     if (d.textContent !== m) d.textContent = m;
   };
 
-  const OPTIONS = [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['debug', 'Debug labels']];
+  const OPTIONS = [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['debug', 'Debug labels']];
   // ---- settings button (the FB Cleaner logo) + panel ----
   const LOGO = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block"><circle cx="50" cy="50" r="42" fill="none" stroke="#e0245e" stroke-width="9"/><line x1="69" y1="31" x2="31" y2="69" stroke="#e0245e" stroke-width="9" stroke-linecap="round"/><circle cx="34" cy="36" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/><circle cx="66" cy="64" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/></svg>';
   const gear = document.createElement('div');
@@ -189,7 +189,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:64px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v26</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v27</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
@@ -300,11 +300,44 @@
     show();
   };
 
+  // ---- text posts on a colored/picture background: show the words as a normal post instead ----
+  const plain = () => {
+    document.querySelectorAll('[data-fbmc-plain]').forEach(box => {
+      const p = box.querySelector(':scope > .fbmc-plain');
+      if (p && opt.plain) return;
+      if (p) p.remove();
+      [...box.children].forEach(k => { k.style.display = k.dataset.fbmcPlainDisp || ''; delete k.dataset.fbmcPlainDisp; });
+      for (let e = box; e; e = e.parentElement) { if ('fbmcPlainH' in e.dataset) { e.style.height = e.dataset.fbmcPlainH; delete e.dataset.fbmcPlainH; } if (e.dataset.trackingDurationId) break; }
+      delete box.dataset.fbmcPlain;
+    });
+    if (!opt.plain) return;
+    document.querySelectorAll('[data-tracking-duration-id] [data-mcomponent="TextArea"]').forEach(ta => {
+      const box = ta.parentElement, img = box.querySelector(':scope > [data-mcomponent="ImageArea"]');
+      if (box.dataset.fbmcPlain || !img || !(parseFloat(ta.style.marginTop) < 0)) return; // words drawn on top of a picture
+      const ir = img.getBoundingClientRect(), tw = ta.getBoundingClientRect().width, sp = ta.querySelector('span');
+      if (ir.width < innerWidth * 0.9 || tw < ir.width * 0.5 || !sp || parseFloat(getComputedStyle(sp).fontSize) < 22) return; // big words across a full-width picture, not a photo label
+      const words = ta.innerText.trim();
+      if (!/\p{L}/u.test(words)) return;
+      const oldH = box.getBoundingClientRect().height;
+      [...box.children].forEach(k => { k.dataset.fbmcPlainDisp = k.style.display; k.style.display = 'none'; });
+      const p = document.createElement('div');
+      p.className = 'fbmc-plain';
+      p.textContent = words;
+      p.style.cssText = 'color:' + palette().text + ';font:18px/1.33 system-ui,sans-serif;padding:4px 12px 10px;white-space:pre-wrap;overflow-wrap:anywhere';
+      box.append(p); box.dataset.fbmcPlain = '1';
+      box.dataset.fbmcPlainH = box.style.height; box.style.height = 'auto';
+      // Facebook sizes every box on the phone page by hand, so shrink the post's boxes by what we saved
+      const delta = oldH - box.getBoundingClientRect().height;
+      for (let e = box.parentElement; e; e = e.parentElement) { const h = parseFloat(e.style.height); if (h) { e.dataset.fbmcPlainH = e.style.height; e.style.height = (h - delta) + 'px'; } if (e.dataset.trackingDurationId) break; }
+    });
+  };
+
   // ---- main pass ----
   const scan = () => {
     if (!document.querySelector('[data-mcomponent]')) return; // desktop layout: leave it to the desktop script
     if (!gear.isConnected) document.body.append(gear, panel);
     heal();
+    plain();
     // Reels tray
     document.querySelectorAll('[aria-label^="reels" i]').forEach(r => {
       const post = r.closest('[data-tracking-duration-id]');
