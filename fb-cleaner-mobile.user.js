@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      31
+// @version      32
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -15,7 +15,7 @@
 // Tap the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '31';
+  document.documentElement.dataset.fbmcRunning = '32';
   // ---- wrong-script check: warn once if this page's layout needs the other FB Cleaner script and it isn't installed ----
   const mismatch = (want, file) => {
     const k = 'fbc-mismatch-' + want;
@@ -95,11 +95,11 @@
       if (!n.data.trim() || !shown(n.parentElement) || n.parentElement.closest('.fbmc-dbg,.fbmc-bar')) continue; // skip our own labels
       const r = document.createRange(); r.selectNodeContents(n);
       const q = [...r.getClientRects()].find(q => q.width > 1 && q.height > 1);
-      if (q && q.top - top0 < 120) bits.push({ t: n.data, x: q.left, y: q.top + q.height / 2 });
+      if (q && q.top - top0 < 170) bits.push({ t: n.data, x: q.left, y: q.top + q.height / 2 });
     }
     post.querySelectorAll('svg use').forEach(u => {
       const q = u.closest('svg').getBoundingClientRect(), t = resolveUse(u);
-      if (t.trim() && q.width > 1 && q.top - top0 < 120) bits.push({ t, x: q.left, y: q.top + q.height / 2 });
+      if (t.trim() && q.width > 1 && q.top - top0 < 170) bits.push({ t, x: q.left, y: q.top + q.height / 2 });
     });
     bits.sort((a, b) => a.y - b.y);
     let l = 0, top = -1e9;
@@ -190,7 +190,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:52px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v31</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Mobile v32</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
@@ -283,9 +283,11 @@
       return;
     }
     const m = ls[0].match(SUGG);
-    const name = ls[0].replace(/\s*[·•]?\s*(Follow|Join)$/, '').trim();
+    let name = ls[0].replace(/\s*[·•]?\s*(Follow|Join)$/, '').trim();
     // the Ad label sits on a short line under the name (line 3 if the name wraps); long lines are post text
-    const isAd = [ls[1], ls[2] || ''].some(l => l.length < 20 && AD.test(l));
+    let isAd = [ls[1], ls[2] || ''].some(l => l.length < 20 && AD.test(l));
+    // ads with a "Friends follow Netflix." line above the name push the Ad label further down: it then has to be the whole line
+    if (!isAd) { const j = ls.findIndex((l, i) => i >= 3 && i < 6 && /^(Ad|Sponsored)\s*([·•].*)?$/.test(l)); if (j > 0) { isAd = true; name = ls[j - 1]; } }
     const kind = isAd ? 'ad' : m ? m[2].toLowerCase() : 'post';
     if (kind === 'post') {
       tag(post, 'POST: ' + ls.slice(0, 2).join(' / '));
