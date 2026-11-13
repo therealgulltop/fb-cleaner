@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      37
+// @version      38
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -16,11 +16,11 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '37';
+  document.documentElement.dataset.fbcdRunning = '38';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
-    const VER = 37, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
+    const VER = 38, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -125,12 +125,12 @@
 
   // ---- counter ----
   const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;left:56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;z-index:9999;padding:4px 10px;border-radius:8px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
+  box.style.cssText = 'position:fixed;left:56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;z-index:9999;padding:4px 10px;border-radius:8px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#fff;font:12px/1.4 system-ui,sans-serif;cursor:grab;user-select:none';
   const show = () => {
     if (!box.isConnected) document.body.appendChild(box);
     const n = ads.size + sugg.size, p = posts.size;
     const s = `Ads ${ads.size} + Suggested ${sugg.size + blocks} + Reels ${reels} / Posts ${p} -- ${p ? Math.round(100 * n / p) : 0}%`;
-    if (box.textContent !== s) box.textContent = s;
+    if (box.textContent !== s) { box.textContent = s; place(); }
   };
 
   // ---- debug labels ----
@@ -260,7 +260,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:52px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v37</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v38</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
@@ -287,7 +287,47 @@
   let taps = [];
   head.lastElementChild.addEventListener('click', () => { const now = Date.now(); taps = taps.filter(t => now - t < 2000).concat(now); if (taps.length >= 5) { taps = []; toggleDev(); } });
   syncDev(true);
-  gear.addEventListener('click', e => { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
+  gear.addEventListener('click', e => { e.stopPropagation(); if (moved) { moved = false; return; } panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; show(); place(); });
+  // ---- drag the button and counter (together) out of the way; the spot is remembered in this browser ----
+  const POS = 'fbc-pos-desktop';
+  let pos = { x: 0, y: 0 }, moved = false, drag = null;
+  try { pos = Object.assign(pos, JSON.parse(localStorage.getItem(POS) || '{}')); } catch (e) {}
+  const place = () => {
+    const at = (x, y) => `translate(${x}px,${y}px)`;
+    gear.style.transform = box.style.transform = panel.style.transform = at(pos.x, pos.y);
+    if (!gear.isConnected) return;
+    // keep the pair on screen (a smaller window or a turned phone can push it off)
+    const g = gear.getBoundingClientRect(), b = box.isConnected ? box.getBoundingClientRect() : g;
+    const L = Math.min(g.left, b.left), R = Math.max(g.right, b.right), T = Math.min(g.top, b.top), B = Math.max(g.bottom, b.bottom);
+    const fx = L < 4 ? 4 - L : R > innerWidth - 4 ? innerWidth - 4 - R : 0;
+    const fy = T < 4 ? 4 - T : B > innerHeight - 4 ? innerHeight - 4 - B : 0;
+    if (fx || fy) { pos.x += fx; pos.y += fy; gear.style.transform = box.style.transform = panel.style.transform = at(pos.x, pos.y); }
+    // the menu follows; it opens below the button instead if there's no room above, and slides sideways to stay on screen
+    if (panel.style.display === 'block') {
+      const p = panel.getBoundingClientRect(), g2 = gear.getBoundingClientRect();
+      const py = p.top < 4 ? g2.bottom + 8 - p.top : 0;
+      const px = p.left < 4 ? 4 - p.left : p.right > innerWidth - 4 ? innerWidth - 4 - p.right : 0;
+      if (px || py) panel.style.transform = at(pos.x + px, pos.y + py);
+    }
+  };
+  [gear, box].forEach(el => {
+    el.style.touchAction = 'none';
+    el.addEventListener('pointerdown', e => {
+      if (e.button) return;
+      drag = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y }; moved = false;
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    el.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+      if (!moved && Math.hypot(dx, dy) < 6) return; // a tap, not a drag
+      moved = true; e.preventDefault();
+      pos.x = drag.ox + dx; pos.y = drag.oy + dy; place();
+    });
+    const end = () => { if (!drag) return; drag = null; if (moved) try { localStorage.setItem(POS, JSON.stringify(pos)); } catch (e) {} };
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  });
+  addEventListener('resize', place);
   const applySettings = k => {
     if (k === 'debug' && !opt.debug) document.querySelectorAll('[data-adread]').forEach(s => delete s.dataset.adread);
     document.querySelectorAll('[data-fbcd-kind="' + k + '"]').forEach(s => {
@@ -303,7 +343,7 @@
   // ---- posts with Facebook's hide button: ads and Follow/Join suggestions ----
   const scan = () => {
     if (document.querySelector('[data-mcomponent]')) return; // mobile layout: leave it to the mobile script
-    if (!gear.isConnected) document.body.append(gear, panel);
+    if (!gear.isConnected) { document.body.append(gear, panel); place(); }
     // only show our controls on the feed: on a post, photo or profile they'd cover Facebook's own buttons
     const onFeed = !/^\/(story\.php|permalink\.php|photo|reel|watch|video|notifications|messages|marketplace|search|profile\.php|groups\/[^/]+\/(posts|permalink)\/|[^/]+\/(posts|photos|videos)\/)/.test(location.pathname);
     [gear, panel, box].forEach(e => { e.style.visibility = onFeed ? '' : 'hidden'; });
