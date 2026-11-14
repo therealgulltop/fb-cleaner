@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      44
+// @version      45
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -16,11 +16,11 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '44';
+  document.documentElement.dataset.fbcdRunning = '45';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
-    const VER = 44, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
+    const VER = 45, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -279,15 +279,23 @@
 
   // ---- left menu: Facebook gives it a fixed 360px; shrink it to its longest top item so the feed gets the room ----
   const fitNav = () => {
-    const nav = [...document.querySelectorAll('[role="navigation"]')].find(n => n.querySelector('ul > li') && n.getBoundingClientRect().left < 50 && n.getBoundingClientRect().height > 200);
+    const nav = [...document.querySelectorAll('[role="navigation"]')].find(n => n.getBoundingClientRect().left < 50 && n.getBoundingClientRect().height > 200);
     if (!nav) return;
-    if (!opt.slimnav) { if (nav.dataset.fbcdNav) { nav.style.flex = nav.style.width = nav.style.maxWidth = nav.style.minWidth = ''; delete nav.dataset.fbcdNav; } return; }
+    const undo = () => { [nav, ...nav.querySelectorAll('[data-fbcd-navfix]')].forEach(e => { e.style.flex = e.style.width = e.style.maxWidth = e.style.minWidth = ''; delete e.dataset.fbcdNavfix; }); delete nav.dataset.fbcdNav; };
+    if (!opt.slimnav) { if (nav.dataset.fbcdNav) undo(); return; }
     const L = nav.getBoundingClientRect().left;
-    const labels = [...nav.querySelectorAll('ul')[0].querySelectorAll(':scope > li')].map(li => [...li.querySelectorAll('span')].find(x => !x.childElementCount && x.textContent.trim())).filter(Boolean);
+    // Home: the main list (shortcut names below it can be long and just wrap); Feeds and other views: every link and the heading
+    const ul = nav.querySelector('ul');
+    const items = ul && ul.querySelector(':scope > li') ? [...ul.querySelectorAll(':scope > li')] : [...nav.querySelectorAll('a, [role="link"], h1, h2')];
+    const labels = items.map(li => [...li.querySelectorAll('span'), li].find(x => !x.childElementCount && x.textContent.trim())).filter(Boolean);
     if (!labels.length) return;
     const need = Math.ceil(Math.max(...labels.map(x => { const r = document.createRange(); r.selectNodeContents(x); return r.getBoundingClientRect().right - L; }))) + 24;
-    if (need < 120 || need > 360) return;
-    if (nav.dataset.fbcdNav !== String(need)) { nav.style.flex = '0 0 ' + need + 'px'; nav.style.width = nav.style.maxWidth = nav.style.minWidth = need + 'px'; nav.dataset.fbcdNav = need; }
+    if (need < 100 || need > 360) return;
+    if (nav.dataset.fbcdNav === String(need)) return;
+    undo();
+    nav.style.flex = '0 0 ' + need + 'px'; nav.style.width = nav.style.maxWidth = nav.style.minWidth = need + 'px'; nav.dataset.fbcdNav = need;
+    // some views hold the menu in a fixed-position box with its own 360px width
+    [...nav.querySelectorAll('div')].filter(d => getComputedStyle(d).position === 'fixed').forEach(d => { d.style.width = d.style.maxWidth = need + 'px'; d.dataset.fbcdNavfix = '1'; });
   };
 
   // ---- text posts on a colored/picture background: show the words as a normal post instead ----
@@ -318,7 +326,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:52px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v44</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:10px;color:#7c7f84;margin-left:auto;align-self:flex-start">Desktop v45</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
@@ -330,7 +338,7 @@
     const row = document.createElement('label');
     row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;color:#e4e6eb' + (parent ? ';padding-left:30px' : ''); // Facebook styles labels dim gray
     const cb = document.createElement('input');
-    cb.type = 'checkbox'; cb.checked = !!opt[k]; cb.style.cssText = 'width:20px;height:20px';
+    cb.type = 'checkbox'; cb.checked = !!opt[k]; cb.style.cssText = 'width:20px;height:20px;accent-color:#5d6064';
     cb.addEventListener('change', () => { opt[k] = cb.checked; save(); syncSubs(); applySettings(k); });
     row.append(cb, document.createTextNode(text));
     panel.appendChild(row);
