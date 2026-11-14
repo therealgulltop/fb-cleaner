@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      40
+// @version      41
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -16,11 +16,11 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '40';
+  document.documentElement.dataset.fbcdRunning = '41';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
-    const VER = 40, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
+    const VER = 41, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -210,7 +210,7 @@
     });
   };
 
-  const OPTIONS = [['friends', 'Open the Friends feed'], ['sidebar', 'Hide Sponsored ads in the right column'], ['widen', 'Widen the feed into that space', 'sidebar'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['stories', 'Hide Stories trays in the feed'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['debug', 'Debug labels']];
+  const OPTIONS = [['friends', 'Open the Friends feed'], ['sidebar', 'Hide Sponsored ads in the right column'], ['widen', 'Widen the feed into that space', 'sidebar'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['stories', 'Hide Stories tray'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['debug', 'Debug labels']];
   // ---- right column: hide its Sponsored ads; optionally drop the whole column and widen the feed into the space ----
   const OTHER_RAIL = /^(Contacts|Birthdays|Group chats|Community chats|Friend requests|Your Pages and profiles)$/;
   const bare = el => el.textContent.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim(); // Facebook pads labels with invisible characters
@@ -262,7 +262,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:52px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v40</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v41</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
