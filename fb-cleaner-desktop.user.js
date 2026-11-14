@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      42
+// @version      43
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -16,11 +16,11 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '42';
+  document.documentElement.dataset.fbcdRunning = '43';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
-    const VER = 42, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
+    const VER = 43, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -64,7 +64,7 @@
   }, ms));
 
   // ---- settings (same names and storage as the mobile script) ----
-  const DEFAULTS = { friends: true, sidebar: true, widen: true, follow: true, join: true, reels: true, stories: true, suggestions: true, errors: true, plain: true, debug: false };
+  const DEFAULTS = { friends: true, sidebar: true, widen: true, follow: true, join: true, reels: true, stories: true, slimnav: true, suggestions: true, errors: true, plain: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
   const save = () => { try { localStorage.setItem('fbmc-settings', JSON.stringify(opt)); } catch (e) {} };
   const opt = load();
@@ -211,7 +211,7 @@
     });
   };
 
-  const OPTIONS = [['friends', 'Open the Friends feed'], ['sidebar', 'Hide Sponsored ads in the right column'], ['widen', 'Widen the feed into that space', 'sidebar'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['stories', 'Hide Stories tray'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['debug', 'Debug labels']];
+  const OPTIONS = [['friends', 'Open the Friends feed'], ['sidebar', 'Hide Sponsored ads in the right column'], ['widen', 'Widen the feed into that space', 'sidebar'], ['slimnav', 'Fit the left menu to its items'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['stories', 'Hide Stories tray'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['debug', 'Debug labels']];
   // ---- right column: hide its Sponsored ads; optionally drop the whole column and widen the feed into the space ----
   const OTHER_RAIL = /^(Contacts|Birthdays|Group chats|Community chats|Friend requests|Your Pages and profiles)$/;
   const bare = el => el.textContent.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim(); // Facebook pads labels with invisible characters
@@ -252,7 +252,7 @@
       // photos: Facebook sizes them with a padding-top percentage of the feed width; pin the box to the old width instead
       slot.querySelectorAll('[style*="padding-top"]').forEach(e => {
         const m = /^(?:calc\()?([\d.]+)%\)?$/.exec(e.style.paddingTop);
-        if (!m || !e.querySelector('img,video')) return;
+        if (!m || !e.querySelector('img,video') || e.parentElement.getBoundingClientRect().width < sw * 0.9) return; // only boxes as wide as the feed; narrower ones are sized by screen height
         e.dataset.fbcdPt = e.style.paddingTop;
         e.style.paddingTop = (parseFloat(m[1]) / 100 * feedW) + 'px';
         e.style.width = feedW + 'px'; e.style.marginLeft = e.style.marginRight = 'auto';
@@ -276,6 +276,19 @@
   };
   addEventListener('resize', () => { feedW = 0; document.querySelectorAll('[data-fbcd-wide]').forEach(e => delete e.dataset.fbcdWide); media(false); tick(); });
 
+
+  // ---- left menu: Facebook gives it a fixed 360px; shrink it to its longest top item so the feed gets the room ----
+  const fitNav = () => {
+    const nav = [...document.querySelectorAll('[role="navigation"]')].find(n => n.querySelector('ul > li') && n.getBoundingClientRect().left < 50 && n.getBoundingClientRect().height > 200);
+    if (!nav) return;
+    if (!opt.slimnav) { if (nav.dataset.fbcdNav) { nav.style.flex = nav.style.width = nav.style.maxWidth = nav.style.minWidth = ''; delete nav.dataset.fbcdNav; } return; }
+    const L = nav.getBoundingClientRect().left;
+    const labels = [...nav.querySelectorAll('ul')[0].querySelectorAll(':scope > li')].map(li => [...li.querySelectorAll('span')].find(x => !x.childElementCount && x.textContent.trim())).filter(Boolean);
+    if (!labels.length) return;
+    const need = Math.ceil(Math.max(...labels.map(x => { const r = document.createRange(); r.selectNodeContents(x); return r.getBoundingClientRect().right - L; }))) + 24;
+    if (need < 120 || need > 360) return;
+    if (nav.dataset.fbcdNav !== String(need)) { nav.style.flex = '0 0 ' + need + 'px'; nav.style.width = nav.style.maxWidth = nav.style.minWidth = need + 'px'; nav.dataset.fbcdNav = need; }
+  };
 
   // ---- text posts on a colored/picture background: show the words as a normal post instead ----
   const plain = () => {
@@ -305,7 +318,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:52px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v42</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v43</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
@@ -396,6 +409,7 @@
     heal();
     checkBlocks();
     rail();
+    fitNav();
     plain();
     const now = Date.now();
     document.querySelectorAll('[aria-label^="Hide post"]:not([data-adhit])').forEach(x => {
