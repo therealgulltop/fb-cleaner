@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      43
+// @version      44
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -16,11 +16,11 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '43';
+  document.documentElement.dataset.fbcdRunning = '44';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
-    const VER = 43, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
+    const VER = 44, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -318,7 +318,10 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:52px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v43</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v44</span>';
+  const about = head.querySelector('a'); // the name links to FB Cleaner's page
+  about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
+  about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
