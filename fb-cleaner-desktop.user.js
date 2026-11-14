@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Desktop)
-// @version      41
+// @version      42
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Hides Facebook ads, Follow/Join suggestions, suggestion blocks and the Reels tray on the desktop site.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-desktop.user.js
@@ -16,11 +16,11 @@
 // Click the FB Cleaner logo (bottom-left) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbcdRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbcdRunning = '41';
+  document.documentElement.dataset.fbcdRunning = '42';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
-    const VER = 41, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
+    const VER = 42, KEY = 'fbc-latest-fb-cleaner-desktop.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -193,8 +193,9 @@
       const first = (slot.innerText || '').trim().split('\n')[0] || '';
       let kind = '', label = '', sub = '';
       if (hs.some(h => REELS.test(h))) { kind = 'reels'; label = 'Reels hidden'; }
-      // a Stories tray dropped into the feed (the one at the top of the feed, with Create story, stays)
-      else if ((hs.some(h => STORIES.test(h)) || STORIES.test(first)) && !slot.querySelector('[aria-label="Create story"]')) { kind = 'stories'; label = 'Stories hidden'; }
+      // a Stories tray dropped into the feed: its "Stories" heading is a plain span next to a book icon titled Stories
+      // (the tray at the top of the feed, with Create story, stays)
+      else if ((hs.some(h => STORIES.test(h)) || STORIES.test(first) || [...slot.querySelectorAll('svg title, span')].some(x => !x.childElementCount && STORIES.test(bare(x)))) && !slot.querySelector('[aria-label="Create story"]')) { kind = 'stories'; label = 'Stories hidden'; }
       else if (SUGG_BLOCK.test(first) || hs.some(h => SUGG_BLOCK.test(h)) || slot.querySelector('[aria-label="Suggested for you"]')) {
         kind = 'suggestions'; label = 'Suggestions hidden';
         sub = (hs.find(h => SUGG_BLOCK.test(h)) || (SUGG_BLOCK.test(first) ? first : '') || 'Suggested for you').match(/^[^\d]*/)[0].trim();
@@ -228,11 +229,53 @@
     document.querySelectorAll('[data-fbcd-rail]').forEach(r => { if (!wide || r !== c) { r.style.display = ''; delete r.dataset.fbcdRail; } });
     const main = document.querySelector('[role="main"]');
     if (wide && main) {
+      if (!main.dataset.fbcdWide) { const s0 = main.querySelector('[data-virtualized]'); feedW = s0 ? s0.getBoundingClientRect().width : 0; }
       c.dataset.fbcdRail = '1'; c.style.display = 'none';
       if (!main.dataset.fbcdWide) main.dataset.fbcdWide = '1';
       main.querySelectorAll('[data-virtualized]').forEach(slot => { for (let e = slot.parentElement; e && e !== main; e = e.parentElement) if (!e.dataset.fbcdWide) e.dataset.fbcdWide = '1'; });
     } else document.querySelectorAll('[data-fbcd-wide]').forEach(e => delete e.dataset.fbcdWide);
+    media(wide && !!main);
   };
+  // ---- when the feed is widened, keep photos and videos at the size they had before (bigger text from page zoom, not bigger pictures) ----
+  let feedW = 0; // feed width before widening
+  const outerOf = new WeakMap();
+  const media = wide => {
+    const main = document.querySelector('[role="main"]');
+    if (!wide || !main || !feedW) {
+      document.querySelectorAll('[data-fbcd-pt]').forEach(e => { e.style.paddingTop = e.dataset.fbcdPt; e.style.width = e.style.marginLeft = e.style.marginRight = ''; delete e.dataset.fbcdPt; });
+      document.querySelectorAll('[data-fbcd-zoom]').forEach(e => { e.style.zoom = ''; delete e.dataset.fbcdZoom; });
+      return;
+    }
+    main.querySelectorAll('[data-virtualized]').forEach(slot => {
+      const sw = slot.getBoundingClientRect().width;
+      if (sw < feedW + 8) return;
+      // photos: Facebook sizes them with a padding-top percentage of the feed width; pin the box to the old width instead
+      slot.querySelectorAll('[style*="padding-top"]').forEach(e => {
+        const m = /^(?:calc\()?([\d.]+)%\)?$/.exec(e.style.paddingTop);
+        if (!m || !e.querySelector('img,video')) return;
+        e.dataset.fbcdPt = e.style.paddingTop;
+        e.style.paddingTop = (parseFloat(m[1]) / 100 * feedW) + 'px';
+        e.style.width = feedW + 'px'; e.style.marginLeft = e.style.marginRight = 'auto';
+      });
+      // full-width videos: the player gets a fixed pixel size from the feed width; scale it and its same-height wrappers back down
+      slot.querySelectorAll('video').forEach(v => {
+        let box = null;
+        for (let e = v; e && e !== slot; e = e.parentElement) if (/px$/.test(e.style.height) && e.style.width) { box = e; break; }
+        if (!box || parseFloat(box.style.width) < sw * 0.85) return; // narrow (portrait) players are capped by height, not the feed width
+        let outer = outerOf.get(box);
+        if (!outer || !outer.isConnected || !outer.contains(box)) {
+          outer = box;
+          const h = box.getBoundingClientRect().height;
+          for (let e = box.parentElement; e && e !== slot; e = e.parentElement) { if (Math.abs(e.getBoundingClientRect().height - h) <= 3) outer = e; else break; }
+          outerOf.set(box, outer);
+        }
+        const z = String(Math.round(feedW / sw * 1000) / 1000);
+        if (outer.style.zoom !== z) { outer.style.zoom = z; outer.dataset.fbcdZoom = '1'; }
+      });
+    });
+  };
+  addEventListener('resize', () => { feedW = 0; document.querySelectorAll('[data-fbcd-wide]').forEach(e => delete e.dataset.fbcdWide); media(false); tick(); });
+
 
   // ---- text posts on a colored/picture background: show the words as a normal post instead ----
   const plain = () => {
@@ -262,7 +305,7 @@
   panel.style.cssText = 'position:fixed;left:12px;bottom:52px;z-index:10000;padding:10px 14px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v41</span>';
+  head.innerHTML = '<span style="flex:none;width:24px;height:24px">' + LOGO + '</span><span>FB Cleaner</span><span style="font-weight:400;font-size:12px;color:#b0b3b8">Desktop v42</span>';
   panel.appendChild(head);
   // [setting, label, parent setting for an indented sub-option]
   const boxes = {};
