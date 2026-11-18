@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      41
+// @version      42
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -16,12 +16,12 @@
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '41';
+  document.documentElement.dataset.fbmcRunning = '42';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
     if (!document.querySelector('[data-mcomponent]')) return; // only check on this script's own layout, so the other script's copy doesn't nag here
-    const VER = 41, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 42, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -68,7 +68,7 @@
   }, ms));
 
   // ---- settings ----
-  const DEFAULTS = { friends: true, follow: true, join: true, reels: true, suggestions: true, errors: true, plain: true, debug: false };
+  const DEFAULTS = { friends: true, follow: true, join: true, reels: true, suggestions: true, errors: true, plain: true, nags: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
   const save = () => { try { localStorage.setItem('fbmc-settings', JSON.stringify(opt)); } catch (e) {} };
   const opt = load();
@@ -210,7 +210,7 @@
     if (d.textContent !== m) d.textContent = m;
   };
 
-  const OPTIONS = [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['debug', 'Debug labels']];
+  const OPTIONS = [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['nags', 'Close "Get the app" popups'], ['debug', 'Debug labels']];
   // ---- settings button (the FB Cleaner logo) + panel ----
   const LOGO = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block"><circle cx="50" cy="50" r="42" fill="none" stroke="#e0245e" stroke-width="9"/><line x1="69" y1="31" x2="31" y2="69" stroke="#e0245e" stroke-width="9" stroke-linecap="round"/><circle cx="34" cy="36" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/><circle cx="66" cy="64" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/></svg>';
   const gear = document.createElement('div');
@@ -221,7 +221,7 @@
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v41</span>';
+  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v42</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
@@ -420,6 +420,31 @@
     });
   };
 
+  // ---- "Facebook is better on the app" and similar get-the-app sheets: press their own "Not now" ----
+  const NAG = /better on the app|get the (facebook )?app|open (it )?in the app|use the app|download the app|continue in the app/i, NOT_NOW = /^(Not now|No thanks|Maybe later|Continue in browser|Stay on web)$/i;
+  let nagAt = 0;
+  const nags = () => {
+    if (!opt.nags || Date.now() - nagAt < 1000) return; // a full text walk, so at most once a second
+    nagAt = Date.now();
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n; (n = w.nextNode());) {
+      if (!NOT_NOW.test(n.data.trim()) || n.parentElement.closest('.fbmc-bar,[data-fbmc-nag]')) continue;
+      // the sheet: the nearest box around the button that also carries the get-the-app pitch
+      let sheet = n.parentElement;
+      while (sheet && sheet !== document.body && !NAG.test(sheet.textContent)) sheet = sheet.parentElement;
+      if (!sheet || sheet === document.body || sheet.textContent.length > 600) continue;
+      const btn = n.parentElement.closest('[role="button"],button,a,[data-action-id],[tabindex]') || n.parentElement;
+      btn.dataset.fbmcNag = '1';
+      btn.click();
+      setTimeout(() => { // still up: hide the sheet's whole pop-up layer
+        if (!sheet.isConnected || !sheet.getBoundingClientRect().height) return;
+        let layer = sheet;
+        for (let e = sheet; e && e !== document.body; e = e.parentElement) if (getComputedStyle(e).position === 'fixed') { layer = e; break; }
+        layer.style.display = 'none';
+      }, 600);
+    }
+  };
+
   // ---- main pass ----
   const scan = () => {
     if (!document.querySelector('[data-mcomponent]')) return; // desktop layout: leave it to the desktop script
@@ -430,6 +455,7 @@
     if (!onFeed) panel.style.display = 'none';
     heal();
     plain();
+    nags();
     // Reels tray
     document.querySelectorAll('[aria-label^="reels" i]').forEach(r => {
       const post = r.closest('[data-tracking-duration-id]');
