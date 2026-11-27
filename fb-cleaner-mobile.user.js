@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      50
+// @version      51
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -17,12 +17,12 @@
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '50';
+  document.documentElement.dataset.fbmcRunning = '51';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
     if (!document.querySelector('[data-mcomponent]')) return; // only check on this script's own layout, so the other script's copy doesn't nag here
-    const VER = 50, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 51, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -178,8 +178,21 @@
   };
   // a post from one person or page you don't know? (group posts and posts with a second name line are left alone)
   const TIME = /^(\d+\s?(s|m|h|d|w|y|min|mins|hr|hrs)\b|Just now|Yesterday|(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b)/i;
-  const AI_LABEL = /(^|[·•]\s*)AI (content|info)\s*([·•]|$)/i;
-  const hasAiLabel = post => { const w = document.createTreeWalker(post, NodeFilter.SHOW_TEXT); for (let n; (n = w.nextNode());) if (n.data.length < 20 && /^\s*[·•]?\s*AI (content|info)\s*[·•]?\s*$/i.test(n.data) && !n.parentElement.closest('.fbmc-dbg,.fbmc-bar')) return true; return false; };
+  // the dots between header items are drawn, not text, so the label shows up as "Lori Raby AI content 19h": it has to be followed by the time
+  const AI_LABEL = /(^|\s|[·•])AI (content|info)\s*[·•]?\s*(\d+\s?(s|m|h|d|w|y|min|mins|hr|hrs)\b|Just now|Yesterday|(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b|$)/i;
+  // the label as its own short piece of text anywhere in the post; Facebook may split "AI" and "content" or use a no-break space
+  const hasAiLabel = post => {
+    const w = document.createTreeWalker(post, NodeFilter.SHOW_TEXT);
+    let prev = '';
+    for (let n; (n = w.nextNode());) {
+      if (n.parentElement.closest('.fbmc-dbg,.fbmc-bar')) continue;
+      const s = clean(n.data); if (!s) continue;
+      if (s.length < 60 && AI_LABEL.test(s)) return true;
+      if (/^(content|info)( ?[·•])?$/i.test(s) && /(^|[·•] ?)AI$/.test(prev)) return true;
+      prev = s;
+    }
+    return false;
+  };
   let whyKnown = ''; // why the last post checked counts as known (for the debug label)
   const stranger = ls => {
     whyKnown = '';
@@ -295,7 +308,7 @@
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v50</span>';
+  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v51</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
