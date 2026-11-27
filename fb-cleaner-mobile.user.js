@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      55
+// @version      56
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -17,12 +17,12 @@
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '55';
+  document.documentElement.dataset.fbmcRunning = '56';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
     if (!document.querySelector('[data-mcomponent]')) return; // only check on this script's own layout, so the other script's copy doesn't nag here
-    const VER = 55, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 56, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -253,6 +253,31 @@
     e.stopImmediatePropagation(); if (e.cancelable) e.preventDefault();
     if (Math.hypot(p.clientX - tx, p.clientY - ty) <= 10 || e.type === 'click') undoOf.get(b)();
   }, { capture: true }));
+  // Taps inside Facebook's feed never reach the Undo buttons on the phone, but taps on our own controls (outside the feed) do.
+  // So each visible Undo button gets an invisible tap target of our own, laid over it from outside the feed and kept in place as you scroll.
+  const undoBtns = new Set(), hitOf = new Map();
+  const hits = document.createElement('div');
+  hits.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;z-index:9998;pointer-events:none';
+  let undoRaf = 0;
+  const placeHits = () => {
+    undoRaf = 0;
+    if (!hits.isConnected) document.body.appendChild(hits);
+    undoBtns.forEach(b => {
+      const r = b.isConnected ? b.getBoundingClientRect() : null;
+      let h = hitOf.get(b);
+      if (!r || !r.width || r.bottom < 0 || r.top > innerHeight) { if (h) h.style.display = 'none'; if (!b.isConnected) { if (h) h.remove(); hitOf.delete(b); undoBtns.delete(b); } return; }
+      if (!h) {
+        h = document.createElement('div');
+        h.style.cssText = 'position:fixed;pointer-events:auto;cursor:pointer;background:transparent';
+        h.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); const f = undoOf.get(b); if (f) f(); h.remove(); hitOf.delete(b); undoBtns.delete(b); });
+        hits.appendChild(h); hitOf.set(b, h);
+      }
+      Object.assign(h.style, { display: '', left: r.left - 6 + 'px', top: r.top - 6 + 'px', width: r.width + 12 + 'px', height: r.height + 12 + 'px' });
+    });
+  };
+  const trackUndo = () => { if (!undoRaf) undoRaf = requestAnimationFrame(placeHits); };
+  ['scroll', 'resize', 'touchmove'].forEach(ev => addEventListener(ev, () => { if (undoBtns.size) trackUndo(); }, { passive: true, capture: true }));
+  setInterval(() => { if (undoBtns.size) trackUndo(); }, 500); // posts above can change height without a scroll
   const makeBar = (c, label, sub, onUndo) => {
     const bar = document.createElement('div');
     bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px 4px 10px;background:' + c.card + ';border-radius:8px;font:13px/20px system-ui,sans-serif;color:' + c.sub;
@@ -265,6 +290,7 @@
     btn.style.background = c.card === '#242526' ? '#303132' : '#eef0f2'; btn.style.color = dim;
     let done = false;
     undoOf.set(btn, () => { if (!done) { done = true; onUndo(); } });
+    undoBtns.add(btn); trackUndo();
     return bar;
   };
   const collapse = (post, label, name) => {
@@ -284,7 +310,7 @@
     restore.set(post, expand);
     const bar = makeBar(palette(), label, name, () => { if (name) kept.add(name); expand(); post.dataset.fbmc = 'shown'; });
     bar.className = 'fbmc-bar';
-    bar.style.position = 'relative'; bar.style.zIndex = '2147483647'; // above any tap layer Facebook puts over the post
+    bar.style.position = 'relative'; bar.style.zIndex = '10'; // above any tap layer Facebook puts over the post (and below our own tap targets)
     post.prepend(bar);
   };
   const LABEL = { ad: 'Ad hidden', follow: 'Suggestion hidden', join: 'Group suggestion hidden', reels: 'Reels hidden', suggestions: 'Suggestions hidden', strangers: 'Not someone you follow', ai: 'AI content hidden' };
@@ -327,7 +353,7 @@
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v55</span>';
+  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v56</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
