@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      53
+// @version      54
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -17,12 +17,12 @@
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '53';
+  document.documentElement.dataset.fbmcRunning = '54';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
     if (!document.querySelector('[data-mcomponent]')) return; // only check on this script's own layout, so the other script's copy doesn't nag here
-    const VER = 53, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 54, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -237,6 +237,21 @@
                 : { card: '#ffffff', text: '#050505', sub: '#65676b', button: '#e4e6eb' };
   };
   // compact, low-key card that stands in for a hidden post:  [x] Label · name ............ [Undo]
+  // Facebook's phone page catches taps on posts before they reach anything inside them, so Undo buttons are answered here,
+  // on the window before Facebook sees the tap: a tap (not a scroll) that lands on an Undo button
+  const undoOf = new WeakMap();
+  let tx = 0, ty = 0;
+  const undoAt = (x, y) => { const el = document.elementFromPoint(x, y); for (let e = el; e; e = e.parentElement) if (undoOf.has(e)) return e; return null; };
+  ['touchstart', 'pointerdown', 'mousedown'].forEach(ev => addEventListener(ev, e => {
+    const p = e.touches ? e.touches[0] : e; tx = p.clientX; ty = p.clientY;
+    if (undoAt(tx, ty)) e.stopImmediatePropagation();
+  }, { capture: true, passive: true }));
+  ['touchend', 'pointerup', 'mouseup', 'click'].forEach(ev => addEventListener(ev, e => {
+    const p = e.changedTouches ? e.changedTouches[0] : e;
+    const b = undoAt(p.clientX, p.clientY); if (!b) return;
+    e.stopImmediatePropagation(); if (e.cancelable) e.preventDefault();
+    if (Math.hypot(p.clientX - tx, p.clientY - ty) <= 10 || e.type === 'click') undoOf.get(b)();
+  }, { capture: true }));
   const makeBar = (c, label, sub, onUndo) => {
     const bar = document.createElement('div');
     bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px 4px 10px;background:' + c.card + ';border-radius:8px;font:13px/20px system-ui,sans-serif;color:' + c.sub;
@@ -247,15 +262,8 @@
     text.textContent = label + (sub ? ' · ' + sub : '');
     text.style.cssText += ';font-size:12px;font-style:italic;color:' + dim; // dimmer than the rest of the card
     btn.style.background = c.card === '#242526' ? '#303132' : '#eef0f2'; btn.style.color = dim;
-    // Facebook's phone page swallows taps on posts before they become clicks, so Undo answers the touch itself (a tap, not a scroll)
-    let done = false, sx = 0, sy = 0;
-    const undo = e => {
-      const p = e.changedTouches ? e.changedTouches[0] : e;
-      if (e.type !== 'click' && Math.hypot(p.clientX - sx, p.clientY - sy) > 10) return;
-      e.stopPropagation(); e.preventDefault(); if (!done) { done = true; onUndo(); }
-    };
-    ['touchstart', 'pointerdown', 'mousedown'].forEach(ev => btn.addEventListener(ev, e => { const p = e.touches ? e.touches[0] : e; sx = p.clientX; sy = p.clientY; e.stopPropagation(); }, { passive: true }));
-    ['touchend', 'pointerup', 'click'].forEach(ev => btn.addEventListener(ev, undo));
+    let done = false;
+    undoOf.set(btn, () => { if (!done) { done = true; onUndo(); } });
     return bar;
   };
   const collapse = (post, label, name) => {
@@ -317,7 +325,7 @@
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v53</span>';
+  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v54</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
