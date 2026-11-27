@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      48
+// @version      49
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -17,12 +17,12 @@
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '48';
+  document.documentElement.dataset.fbmcRunning = '49';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
     if (!document.querySelector('[data-mcomponent]')) return; // only check on this script's own layout, so the other script's copy doesn't nag here
-    const VER = 48, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 49, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -130,6 +130,8 @@
     const method = body ? 'POST' : 'GET', headers = body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {};
     if (host === location.host) return fetch(path, { method, body, headers, credentials: 'include' }).then(r => r.text()).then(ok, fail);
     if (typeof GM_xmlhttpRequest !== 'function') return fail(new Error('no GM_xmlhttpRequest'));
+    // www.facebook.com sends phones to m.facebook.com, so these requests say they come from a computer browser
+    if (host === 'www.facebook.com') headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
     GM_xmlhttpRequest({ method, url: 'https://' + host + path, data: body, headers, onload: r => ok(r.responseText || ''), onerror: () => fail(new Error('network')), ontimeout: () => fail(new Error('timeout')), timeout: 20000 });
   });
   const HOSTS = [...new Set([location.host, 'www.facebook.com'])];
@@ -140,11 +142,11 @@
     for (const h of goodHost ? [goodHost, ...HOSTS.filter(x => x !== goodHost)] : HOSTS) {
       for (let i = 0; i < 3; i++) { // Facebook sometimes answers a request with a passing server error: wait and try again
         if (i) await pause(1500 * i);
-        try { const t = await send(h, path, body); const v = test(t); if (v) { goodHost = h; return v; } notes.push(h.split('.')[0] + ':' + t.length + ':' + t.slice(0, 40).replace(/\s+/g, ' ')); }
+        try { const t = await send(h, path, body); const v = test(t); if (v) { goodHost = h; return v; } notes.push(h.split('.')[0] + ':' + t.length + ':' + t.slice(0, 120).replace(/\s+/g, ' ')); }
         catch (e) { notes.push(h.split('.')[0] + ':' + (e.message || e)); }
       }
     }
-    throw new Error(path.split('?')[0] + ' -- ' + notes.join(' | '));
+    throw new Error(path.split('?')[0] + ' -- ' + [...new Set(notes)].join(' | '));
   };
   // the session token Facebook requires on these requests: from this page's own code, or asked for
   const pageToken = () => { for (const s of document.querySelectorAll('script:not([src])')) { const m = s.textContent.match(/"(?:DTSGInitialData|DTSGInitData)",\[\],\{"token":"([^"]+)"/) || s.textContent.match(/"dtsg":\{"token":"([^"]+)"/) || s.textContent.match(/name="fb_dtsg" value="([^"]+)"/); if (m) return m[1]; } const i = document.querySelector('input[name="fb_dtsg"]'); return i ? i.value : null; };
@@ -161,7 +163,7 @@
       let friends = 0, cur = null;
       do { const c = (await gql('26206414195674994', { count: 30, cursor: cur, name: null, scale: 1 })).viewer.all_friends; c.edges.forEach(e => { if (e.node.name) { names.add(norm(e.node.name)); friends++; } }); cur = c.page_info.has_next_page ? c.page_info.end_cursor : null; await pause(150); } while (cur);
       // your name and your Following list's id come from the route Facebook uses to open your Following tab
-      const rt = await ask('/ajax/bulk-route-definitions/', new URLSearchParams({ fb_dtsg: dt[1], 'route_urls[0]': '/' + uid + '/following', __a: '1', __user: uid, __comet_req: '15' }).toString(), t => /collectionToken/.test(t) && t).catch(e => { followErr = String(e.message || e).slice(0, 200); return ''; });
+      const rt = await ask('/ajax/bulk-route-definitions/', new URLSearchParams({ fb_dtsg: dt[1], 'route_urls[0]': '/' + uid + '/following', __a: '1', __user: uid, __comet_req: '15' }).toString(), t => /collectionToken/.test(t) && t).catch(e => { followErr = String(e.message || e).slice(0, 400); return ''; });
       const self = (rt.match(/"title":"([^"]+)"/) || [])[1]; if (self) names.add(norm(JSON.parse('"' + self + '"')));
       const col = (rt.match(/"collectionToken":"(YXBwX2NvbGxlY3Rpb246[A-Za-z0-9=]+)"/) || [])[1];
       let following = 0;
@@ -292,7 +294,7 @@
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v48</span>';
+  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v49</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
