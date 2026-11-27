@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      47
+// @version      48
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -17,12 +17,12 @@
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '47';
+  document.documentElement.dataset.fbmcRunning = '48';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
     if (!document.querySelector('[data-mcomponent]')) return; // only check on this script's own layout, so the other script's copy doesn't nag here
-    const VER = 47, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 48, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -69,7 +69,7 @@
   }, ms));
 
   // ---- settings ----
-  const DEFAULTS = { friends: true, follow: true, join: true, reels: true, suggestions: true, errors: true, plain: true, nags: true, strangers: true, debug: false };
+  const DEFAULTS = { friends: true, follow: true, join: true, reels: true, suggestions: true, errors: true, plain: true, nags: true, strangers: true, ai: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
   const save = () => { try { localStorage.setItem('fbmc-settings', JSON.stringify(opt)); } catch (e) {} };
   const opt = load();
@@ -176,6 +176,7 @@
   };
   // a post from one person or page you don't know? (group posts and posts with a second name line are left alone)
   const TIME = /^(\d+\s?(s|m|h|d|w|y|min|mins|hr|hrs)\b|Just now|Yesterday|(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b)/i;
+  const AI_LABEL = /(^|[·•]\s*)AI (content|info)\s*([·•]|$)/i;
   let whyKnown = ''; // why the last post checked counts as known (for the debug label)
   const stranger = ls => {
     whyKnown = '';
@@ -251,7 +252,7 @@
     bar.className = 'fbmc-bar';
     post.prepend(bar);
   };
-  const LABEL = { ad: 'Ad hidden', follow: 'Suggestion hidden', join: 'Group suggestion hidden', reels: 'Reels hidden', suggestions: 'Suggestions hidden', strangers: 'Not someone you follow' };
+  const LABEL = { ad: 'Ad hidden', follow: 'Suggestion hidden', join: 'Group suggestion hidden', reels: 'Reels hidden', suggestions: 'Suggestions hidden', strangers: 'Not someone you follow', ai: 'AI content hidden' };
   const act = (post, kind, name) => {
     post.dataset.fbmcKind = kind;
     if (!enabled(kind)) { post.dataset.fbmc = 'off'; return; }
@@ -280,7 +281,7 @@
     if (d.textContent !== m) d.textContent = m;
   };
 
-  const OPTIONS = [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['nags', 'Close "Get the app" popups'], ['strangers', 'Hide posts from people and pages you don\'t follow'], ['debug', 'Debug labels']];
+  const OPTIONS = [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['nags', 'Close "Get the app" popups'], ['strangers', 'Hide posts from people and pages you don\'t follow'], ['ai', 'Hide posts labeled "AI content"'], ['debug', 'Debug labels']];
   // ---- settings button (the FB Cleaner logo) + panel ----
   const LOGO = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block"><circle cx="50" cy="50" r="42" fill="none" stroke="#e0245e" stroke-width="9"/><line x1="69" y1="31" x2="31" y2="69" stroke="#e0245e" stroke-width="9" stroke-linecap="round"/><circle cx="34" cy="36" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/><circle cx="66" cy="64" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/></svg>';
   const gear = document.createElement('div');
@@ -291,7 +292,7 @@
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v47</span>';
+  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v48</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
@@ -384,7 +385,7 @@
   addEventListener('resize', place);
   const applySettings = k => {
     if (k === 'debug' && !opt.debug) document.querySelectorAll('.fbmc-dbg').forEach(d => d.remove());
-    if (k === 'debug' || k === 'strangers') { document.querySelectorAll('[data-fbmc="post"]').forEach(p => delete p.dataset.fbmc); }
+    if (k === 'debug' || k === 'strangers' || k === 'ai') { document.querySelectorAll('[data-fbmc="post"]').forEach(p => delete p.dataset.fbmc); }
     document.querySelectorAll('[data-fbmc-kind="' + k + '"]').forEach(p => {
       if (opt[k] && p.dataset.fbmc === 'off') delete p.dataset.fbmc; // re-check and collapse on next pass
       if (!opt[k] && p.dataset.fbmc === 'hidden') { const ex = restore.get(p); if (ex) ex(); p.dataset.fbmc = 'off'; }
@@ -453,6 +454,14 @@
     // ads with a "Friends follow Netflix." line above the name push the Ad label further down: it then has to be the whole line
     if (!isAd) { const j = ls.findIndex((l, i) => i >= 3 && i < 6 && /^(Ad|Sponsored)\s*([·•].*)?$/.test(l)); if (j > 0) { isAd = true; name = ls[j - 1]; } }
     const kind = isAd ? 'ad' : m ? (m[2] === 'Join' ? 'join' : 'follow') : 'post'; // "Add friend" counts as a suggestion like Follow
+    // Facebook's own "AI content" label, on the line under the name ("Joe Miller · AI content · 16h")
+    if (kind === 'post' && opt.ai && ls.slice(1, 4).some(l => AI_LABEL.test(l))) {
+      if (!post.dataset.fbmcKind) { posts++; sugg++; }
+      tag(post, 'AI: ' + ls.slice(0, 2).join(' / '));
+      if (kept.has(name)) { post.dataset.fbmcKind = 'ai'; post.dataset.fbmc = 'shown'; return; }
+      act(post, 'ai', name);
+      return;
+    }
     if (kind === 'post' && opt.strangers && stranger(ls)) {
       if (!post.dataset.fbmcKind) { posts++; sugg++; }
       tag(post, 'STRANGER: ' + ls.slice(0, 2).join(' / '));
