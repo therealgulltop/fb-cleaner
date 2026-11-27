@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      51
+// @version      52
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -17,12 +17,12 @@
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '51';
+  document.documentElement.dataset.fbmcRunning = '52';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
     if (!document.querySelector('[data-mcomponent]')) return; // only check on this script's own layout, so the other script's copy doesn't nag here
-    const VER = 51, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 52, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -93,7 +93,7 @@
   let posts = 0, ads = 0, sugg = 0, reels = 0;
 
   // strip Facebook's icon-font glyphs (private-use characters, incl. the supplementary planes) and invisible joiners
-  const clean = s => s.replace(/[\uE000-\uF8FF\u{F0000}-\u{FFFFD}\u{100000}-\u{10FFFD}\uFE0F\u200B-\u200D\u2060]/gu, '').replace(/\s+/g, ' ').trim();
+  const clean = s => s.replace(/[\uE000-\uF8FF\u{F0000}-\u{FFFFD}\u{100000}-\u{10FFFD}\uFE0F\u200B-\u200F\u202A-\u202E\u2060-\u2069\u00AD]/gu, '').replace(/\s+/g, ' ').trim();
   const resolveUse = u => {
     let el = u; const seen = new Set();
     while (el && el.querySelector) {
@@ -123,15 +123,16 @@
   const norm = s => clean(s).normalize('NFKC').toLowerCase();
   let known = null; // { at, self, friends, following, names: [...] } or { at, error }
   try { known = JSON.parse(localStorage.getItem(KNOWN_KEY) || 'null'); } catch (e) {}
-  let knownSet = new Set(known && known.names || []), knownBusy = false;
+  let knownSet = new Set(known && known.names || []), knownBusy = 0; // when the update started
   const pause = ms => new Promise(r => setTimeout(r, ms));
   // ask Facebook with your own sign-in: this site first (m.facebook.com on a phone), then www.facebook.com through Tampermonkey
   const send = (host, path, body) => new Promise((ok, fail) => {
     const method = body ? 'POST' : 'GET', headers = body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {};
-    if (host === location.host) return fetch(path, { method, body, headers, credentials: 'include' }).then(r => r.text()).then(ok, fail);
+    if (host === location.host) { const ac = new AbortController(); setTimeout(() => ac.abort(), 20000); return fetch(path, { method, body, headers, credentials: 'include', signal: ac.signal }).then(r => r.text()).then(ok, () => fail(new Error('timeout or network'))); }
     if (typeof GM_xmlhttpRequest !== 'function') return fail(new Error('no GM_xmlhttpRequest'));
     // www.facebook.com sends phones to m.facebook.com, so these requests say they come from a computer browser
     if (host === 'www.facebook.com') headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+    setTimeout(() => fail(new Error('no answer')), 25000);
     GM_xmlhttpRequest({ method, url: 'https://' + host + path, data: body, headers, onload: r => ok(r.responseText || ''), onerror: () => fail(new Error('network')), ontimeout: () => fail(new Error('timeout')), timeout: 20000 });
   });
   const HOSTS = [...new Set([location.host, 'www.facebook.com'])];
@@ -152,7 +153,7 @@
   const pageToken = () => { for (const s of document.querySelectorAll('script:not([src])')) { const m = s.textContent.match(/"(?:DTSGInitialData|DTSGInitData)",\[\],\{"token":"([^"]+)"/) || s.textContent.match(/"dtsg":\{"token":"([^"]+)"/) || s.textContent.match(/name="fb_dtsg" value="([^"]+)"/); if (m) return m[1]; } const i = document.querySelector('input[name="fb_dtsg"]'); return i ? i.value : null; };
   const firstJson = t => JSON.parse(t.replace(/^for \(;;\);/, '').split('\n')[0]);
   const refreshKnown = async () => {
-    if (knownBusy) return; knownBusy = true; showKnown();
+    if (knownBusy && Date.now() - knownBusy < 5 * 6e4) return; knownBusy = Date.now(); showKnown();
     try {
       const uid = (document.cookie.match(/c_user=(\d+)/) || [])[1]; if (!uid) throw new Error('not signed in');
       const dt = [null, pageToken() || await ask('/ajax/dtsg/?__a=true', null, t => (t.match(/"token":"([^"]+)"/) || [])[1])];
@@ -174,7 +175,7 @@
       document.querySelectorAll('[data-fbmc="post"]').forEach(p => delete p.dataset.fbmc); // recheck posts already seen
     } catch (e) { known = Object.assign({}, known, { at: Date.now(), v: document.documentElement.dataset.fbmcRunning, error: String(e.message || e).slice(0, 300) }); }
     try { localStorage.setItem(KNOWN_KEY, JSON.stringify(known)); } catch (e) {}
-    knownBusy = false; showKnown(); tick();
+    knownBusy = 0; showKnown(); tick();
   };
   // a post from one person or page you don't know? (group posts and posts with a second name line are left alone)
   const TIME = /^(\d+\s?(s|m|h|d|w|y|min|mins|hr|hrs)\b|Just now|Yesterday|(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b)/i;
@@ -308,7 +309,7 @@
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v51</span>';
+  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v52</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
