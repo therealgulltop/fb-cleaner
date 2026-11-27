@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      45
+// @version      46
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -17,12 +17,12 @@
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '45';
+  document.documentElement.dataset.fbmcRunning = '46';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
     if (!document.querySelector('[data-mcomponent]')) return; // only check on this script's own layout, so the other script's copy doesn't nag here
-    const VER = 45, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 46, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -166,10 +166,10 @@
       let following = 0;
       if (col) { cur = null; do { const c = (await gql('40194301110185320', { count: 8, cursor: cur, scale: 1, search: null, id: col })).node.pageItems; c.edges.forEach(e => { const n = e.node.title && e.node.title.text; if (n) { names.add(norm(n)); following++; } }); cur = c.page_info.has_next_page ? c.page_info.end_cursor : null; await pause(150); } while (cur); }
       if (friends < 1) throw new Error('empty friends list');
-      known = { at: Date.now(), self: !!self, friends, following: col ? following : null, names: [...names] };
+      known = { at: Date.now(), v: document.documentElement.dataset.fbmcRunning, self: !!self, friends, following: col ? following : null, names: [...names] };
       knownSet = names;
       document.querySelectorAll('[data-fbmc="post"]').forEach(p => delete p.dataset.fbmc); // recheck posts already seen
-    } catch (e) { known = Object.assign({}, known, { at: Date.now(), error: String(e.message || e).slice(0, 300) }); }
+    } catch (e) { known = Object.assign({}, known, { at: Date.now(), v: document.documentElement.dataset.fbmcRunning, error: String(e.message || e).slice(0, 300) }); }
     try { localStorage.setItem(KNOWN_KEY, JSON.stringify(known)); } catch (e) {}
     knownBusy = false; showKnown(); tick();
   };
@@ -287,7 +287,7 @@
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v45</span>';
+  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v46</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
@@ -321,8 +321,11 @@
   knownRow.addEventListener('click', e => { if (e.target.tagName === 'A') { e.preventDefault(); e.stopPropagation(); refreshKnown(); } });
   showKnown();
   setInterval(showKnown, 60000);
-  // fetch the list 8 seconds after load when it's missing or a day old (an hour after a failure), only on the phone layout
-  setTimeout(() => { if (document.querySelector('[data-mcomponent]') && opt.strangers && (!known || Date.now() - known.at > (known.error ? DAY / 24 : DAY))) refreshKnown(); }, 8000);
+  // fetch the list on its own, 8 seconds after load, on the phone layout: when it's missing, a day old, from an older version of this script,
+  // or failed more than 5 minutes ago (and every 5 minutes while the tab stays open and it keeps failing)
+  const autoKnown = () => { if (document.querySelector('[data-mcomponent]') && opt.strangers && (!known || known.v !== document.documentElement.dataset.fbmcRunning || Date.now() - known.at > (known.error ? 3e5 : DAY))) refreshKnown(); };
+  setTimeout(autoKnown, 8000);
+  setInterval(autoKnown, 3e5);
   // ---- Debug labels are for the author: the option stays hidden unless you press Ctrl+Alt+D (or tap the version number 5 times) ----
   const dev = () => { try { return localStorage.getItem('fbc-dev') === '1'; } catch (e) { return false; } };
   const syncDev = init => {
