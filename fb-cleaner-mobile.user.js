@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      43
+// @version      44
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -10,18 +10,19 @@
 // @run-at       document-idle
 // @grant        GM_xmlhttpRequest
 // @connect      raw.githubusercontent.com
+// @connect      www.facebook.com
 // ==/UserScript==
 // For Facebook's MOBILE layout only (does nothing on the desktop layout).
 // Collapses ads, Follow/Join suggestions and the Reels tray on screen only -- Facebook is not told.
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '43';
+  document.documentElement.dataset.fbmcRunning = '44';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
     if (!document.querySelector('[data-mcomponent]')) return; // only check on this script's own layout, so the other script's copy doesn't nag here
-    const VER = 43, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 44, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -68,7 +69,7 @@
   }, ms));
 
   // ---- settings ----
-  const DEFAULTS = { friends: true, follow: true, join: true, reels: true, suggestions: true, errors: true, plain: true, nags: true, debug: false };
+  const DEFAULTS = { friends: true, follow: true, join: true, reels: true, suggestions: true, errors: true, plain: true, nags: true, strangers: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('fbmc-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
   const save = () => { try { localStorage.setItem('fbmc-settings', JSON.stringify(opt)); } catch (e) {} };
   const opt = load();
@@ -116,6 +117,55 @@
   };
   const shown = el => { const s = getComputedStyle(el); return s.visibility !== 'hidden' && +s.opacity > 0; };
   // visible text of the top of a post, grouped into lines, read left to right
+
+  // ---- who you know: your friends, the people and pages you follow, and you (fetched from Facebook about once a day, kept in this browser) ----
+  const KNOWN_KEY = 'fbc-known', DAY = 864e5;
+  const norm = s => clean(s).normalize('NFKC').toLowerCase();
+  let known = null; // { at, self, friends, following, names: [...] } or { at, error }
+  try { known = JSON.parse(localStorage.getItem(KNOWN_KEY) || 'null'); } catch (e) {}
+  let knownSet = new Set(known && known.names || []), knownBusy = false;
+  // ask www.facebook.com, with your own sign-in (same-origin there; through Tampermonkey from m.facebook.com)
+  const ask = (path, body) => new Promise((ok, fail) => {
+    const url = 'https://www.facebook.com' + path, method = body ? 'POST' : 'GET', headers = body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {};
+    if (location.host === 'www.facebook.com') return fetch(path, { method, body, headers, credentials: 'include' }).then(r => r.text()).then(ok, fail);
+    if (typeof GM_xmlhttpRequest !== 'function') return fail(new Error('no GM_xmlhttpRequest'));
+    GM_xmlhttpRequest({ method, url, data: body, headers, onload: r => ok(r.responseText || ''), onerror: () => fail(new Error('network')), ontimeout: () => fail(new Error('timeout')), timeout: 20000 });
+  });
+  const firstJson = t => JSON.parse(t.replace(/^for \(;;\);/, '').split('\n')[0]);
+  const pause = ms => new Promise(r => setTimeout(r, ms));
+  const refreshKnown = async () => {
+    if (knownBusy) return; knownBusy = true; showKnown();
+    try {
+      const uid = (document.cookie.match(/c_user=(\d+)/) || [])[1]; if (!uid) throw new Error('not signed in');
+      const dt = (await ask('/ajax/dtsg/?__a=true')).match(/"token":"([^"]+)"/); if (!dt) throw new Error('no session token');
+      const gql = async (doc, vars) => { const j = firstJson(await ask('/api/graphql/', new URLSearchParams({ fb_dtsg: dt[1], doc_id: doc, variables: JSON.stringify(vars) }).toString())); if (!j.data) throw new Error((j.errors && j.errors[0] && j.errors[0].message || 'no data').slice(0, 60)); return j.data; };
+      const names = new Set();
+      // friends
+      let friends = 0, cur = null;
+      do { const c = (await gql('26206414195674994', { count: 30, cursor: cur, name: null, scale: 1 })).viewer.all_friends; c.edges.forEach(e => { if (e.node.name) { names.add(norm(e.node.name)); friends++; } }); cur = c.page_info.has_next_page ? c.page_info.end_cursor : null; await pause(150); } while (cur);
+      // your name and your Following list's id come from the route Facebook uses to open your Following tab
+      const rt = await ask('/ajax/bulk-route-definitions/', new URLSearchParams({ fb_dtsg: dt[1], 'route_urls[0]': '/' + uid + '/following', __a: '1', __user: uid, __comet_req: '15' }).toString());
+      const self = (rt.match(/"title":"([^"]+)"/) || [])[1]; if (self) names.add(norm(JSON.parse('"' + self + '"')));
+      const col = (rt.match(/"collectionToken":"(YXBwX2NvbGxlY3Rpb246[A-Za-z0-9=]+)"/) || [])[1];
+      let following = 0;
+      if (col) { cur = null; do { const c = (await gql('40194301110185320', { count: 8, cursor: cur, scale: 1, search: null, id: col })).node.pageItems; c.edges.forEach(e => { const n = e.node.title && e.node.title.text; if (n) { names.add(norm(n)); following++; } }); cur = c.page_info.has_next_page ? c.page_info.end_cursor : null; await pause(150); } while (cur); }
+      if (friends < 1) throw new Error('empty friends list');
+      known = { at: Date.now(), self: !!self, friends, following: col ? following : null, names: [...names] };
+      knownSet = names;
+      document.querySelectorAll('[data-fbmc="post"]').forEach(p => delete p.dataset.fbmc); // recheck posts already seen
+    } catch (e) { known = Object.assign({}, known, { at: Date.now(), error: String(e.message || e) }); }
+    try { localStorage.setItem(KNOWN_KEY, JSON.stringify(known)); } catch (e) {}
+    knownBusy = false; showKnown(); tick();
+  };
+  // a post from one person or page you don't know? (group posts and posts with a second name line are left alone)
+  const TIME = /^(\d+\s?(s|m|h|d|w|y|min|mins|hr|hrs)\b|Just now|Yesterday|(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b)/i;
+  const stranger = ls => {
+    if (knownSet.size < 20 || !ls[1] || !TIME.test(ls[1])) return false;
+    const head = norm(ls[0]);
+    if (knownSet.has(head)) return false;
+    for (const n of knownSet) if (head.startsWith(n + ' ')) return false; // "Jim McNulty is with ...", "Jim McNulty shared a memory"
+    return true;
+  };
   const headerLines = post => {
     const dbg = post.querySelector(':scope > .fbmc-dbg');
     const top0 = (dbg ? dbg.getBoundingClientRect().bottom : post.getBoundingClientRect().top), bits = [];
@@ -181,7 +231,7 @@
     bar.className = 'fbmc-bar';
     post.prepend(bar);
   };
-  const LABEL = { ad: 'Ad hidden', follow: 'Suggestion hidden', join: 'Group suggestion hidden', reels: 'Reels hidden', suggestions: 'Suggestions hidden' };
+  const LABEL = { ad: 'Ad hidden', follow: 'Suggestion hidden', join: 'Group suggestion hidden', reels: 'Reels hidden', suggestions: 'Suggestions hidden', strangers: 'Not someone you follow' };
   const act = (post, kind, name) => {
     post.dataset.fbmcKind = kind;
     if (!enabled(kind)) { post.dataset.fbmc = 'off'; return; }
@@ -210,7 +260,7 @@
     if (d.textContent !== m) d.textContent = m;
   };
 
-  const OPTIONS = [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['nags', 'Close "Get the app" popups'], ['debug', 'Debug labels']];
+  const OPTIONS = [['friends', 'Open the Friends feed'], ['follow', 'Hide Follow suggestions'], ['join', 'Hide Join (group) suggestions'], ['suggestions', 'Hide "Suggested for you" blocks'], ['reels', 'Hide Reels tray'], ['errors', 'Hide "Something went wrong" tiles'], ['plain', 'Remove colored backgrounds from text posts'], ['nags', 'Close "Get the app" popups'], ['strangers', 'Hide posts from people and pages you don\'t follow'], ['debug', 'Debug labels']];
   // ---- settings button (the FB Cleaner logo) + panel ----
   const LOGO = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block"><circle cx="50" cy="50" r="42" fill="none" stroke="#e0245e" stroke-width="9"/><line x1="69" y1="31" x2="31" y2="69" stroke="#e0245e" stroke-width="9" stroke-linecap="round"/><circle cx="34" cy="36" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/><circle cx="66" cy="64" r="8" fill="none" stroke="#8a8d91" stroke-width="6"/></svg>';
   const gear = document.createElement('div');
@@ -221,7 +271,7 @@
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v43</span>';
+  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v44</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
@@ -240,6 +290,23 @@
     boxes[k] = cb;
   });
   syncSubs();
+  // under "Hide posts from people and pages you don't follow": how big the list is and when it was fetched
+  const knownRow = document.createElement('div');
+  knownRow.style.cssText = 'padding-left:20px;font:400 11px/1.5 system-ui,sans-serif;color:#9a9da2';
+  boxes.strangers.parentElement.after(knownRow);
+  const ago = t => { const m = Math.round((Date.now() - t) / 6e4); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+  const showKnown = () => {
+    if (!knownRow) return;
+    const s = knownBusy ? 'Updating your list...' : !known ? 'List not loaded yet' : known.error ? 'List update failed (' + known.error + ')' : known.friends + ' friends + ' + (known.following === null ? '? ' : known.following + ' ') + 'followed, ' + ago(known.at);
+    knownRow.innerHTML = '<span></span> <a href="#" style="color:#9a9da2">Refresh</a>';
+    knownRow.firstChild.textContent = s;
+    knownRow.lastChild.style.display = knownBusy ? 'none' : '';
+  };
+  knownRow.addEventListener('click', e => { if (e.target.tagName === 'A') { e.preventDefault(); e.stopPropagation(); refreshKnown(); } });
+  showKnown();
+  setInterval(showKnown, 60000);
+  // fetch the list 8 seconds after load when it's missing or a day old (an hour after a failure), only on the phone layout
+  setTimeout(() => { if (document.querySelector('[data-mcomponent]') && opt.strangers && (!known || Date.now() - known.at > (known.error ? DAY / 24 : DAY))) refreshKnown(); }, 8000);
   // ---- Debug labels are for the author: the option stays hidden unless you press Ctrl+Alt+D (or tap the version number 5 times) ----
   const dev = () => { try { return localStorage.getItem('fbc-dev') === '1'; } catch (e) { return false; } };
   const syncDev = init => {
@@ -294,7 +361,7 @@
   addEventListener('resize', place);
   const applySettings = k => {
     if (k === 'debug' && !opt.debug) document.querySelectorAll('.fbmc-dbg').forEach(d => d.remove());
-    if (k === 'debug') { document.querySelectorAll('[data-fbmc="post"]').forEach(p => delete p.dataset.fbmc); }
+    if (k === 'debug' || k === 'strangers') { document.querySelectorAll('[data-fbmc="post"]').forEach(p => delete p.dataset.fbmc); }
     document.querySelectorAll('[data-fbmc-kind="' + k + '"]').forEach(p => {
       if (opt[k] && p.dataset.fbmc === 'off') delete p.dataset.fbmc; // re-check and collapse on next pass
       if (!opt[k] && p.dataset.fbmc === 'hidden') { const ex = restore.get(p); if (ex) ex(); p.dataset.fbmc = 'off'; }
@@ -363,6 +430,13 @@
     // ads with a "Friends follow Netflix." line above the name push the Ad label further down: it then has to be the whole line
     if (!isAd) { const j = ls.findIndex((l, i) => i >= 3 && i < 6 && /^(Ad|Sponsored)\s*([·•].*)?$/.test(l)); if (j > 0) { isAd = true; name = ls[j - 1]; } }
     const kind = isAd ? 'ad' : m ? (m[2] === 'Join' ? 'join' : 'follow') : 'post'; // "Add friend" counts as a suggestion like Follow
+    if (kind === 'post' && opt.strangers && stranger(ls)) {
+      if (!post.dataset.fbmcKind) { posts++; sugg++; }
+      tag(post, 'STRANGER: ' + ls.slice(0, 2).join(' / '));
+      if (kept.has(name)) { post.dataset.fbmcKind = 'strangers'; post.dataset.fbmc = 'shown'; return; }
+      act(post, 'strangers', name);
+      return;
+    }
     if (kind === 'post') {
       tag(post, 'POST: ' + ls.slice(0, 2).join(' / '));
       post.dataset.fbmcSeen = (+post.dataset.fbmcSeen || 0) + 1;
