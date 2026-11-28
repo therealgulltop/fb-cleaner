@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      58
+// @version      59
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -17,12 +17,12 @@
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '58';
+  document.documentElement.dataset.fbmcRunning = '59';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
     if (!document.querySelector('[data-mcomponent]')) return; // only check on this script's own layout, so the other script's copy doesn't nag here
-    const VER = 58, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 59, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -90,7 +90,7 @@
   const SUGG_BLOCK = /^(Suggested for you|People you may know|Suggested groups|Groups you might like|Pages you may like|Suggested pages|Reels and short videos)\b/i;
   const kept = new Set(); // posts you tapped Undo on (until the tab closes), by postKey
   const restore = new WeakMap();
-  let posts = 0, ads = 0, sugg = 0, reels = 0;
+  let posts = 0, ads = 0, sugg = 0, reels = 0, strangers = 0, ai = 0, plained = 0; // plained: backgrounds removed
 
   // strip Facebook's icon-font glyphs (private-use characters, incl. the supplementary planes) and invisible joiners
   const clean = s => s.replace(/[\uE000-\uF8FF\u{F0000}-\u{FFFFD}\u{100000}-\u{10FFFD}\uFE0F\u200B-\u200F\u202A-\u202E\u2060-\u2069\u00AD]/gu, '').replace(/\s+/g, ' ').trim();
@@ -327,12 +327,37 @@
   box.style.cssText = 'position:fixed;right:56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;max-width:calc(100vw - 68px);z-index:9999;padding:4px 10px;border-radius:8px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#fff;font:12px/1.4 system-ui,sans-serif;cursor:grab;user-select:none';
   const show = () => {
     if (!box.isConnected) document.body.appendChild(box);
-    const n = ads + sugg;
+    const n = ads + sugg + strangers + ai + reels;
     const pct = `${posts ? Math.round(100 * n / posts) : 0}%`;
-    // just the percentage until the menu is open
-    const s = panel.style.display === 'block' ? `Ads ${ads} + Suggested ${sugg} + Reels ${reels} / Posts ${posts} -- ${pct}` : pct;
-    if (box.textContent !== s) { box.textContent = s; place(); }
+    if (box.textContent !== pct) { box.textContent = pct; place(); }
+    if (stats.style.display === 'block') {
+      const rows = [['Ads', ads], ['Suggestions', sugg], ['Not someone you follow', strangers], ['AI content', ai], ['Reels', reels]];
+      const html = rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
+      if (stats.dataset.v !== html + n + posts + plained) {
+        stats.dataset.v = html + n + posts + plained;
+        stats.innerHTML = `<div style="display:grid;grid-template-columns:1fr auto;gap:1px 14px;font-variant-numeric:tabular-nums">${html}</div>`
+          + `<div style="display:flex;justify-content:space-between;gap:14px;border-top:1px solid #3e4042;margin-top:4px;padding-top:4px;font-variant-numeric:tabular-nums"><span>Hidden ${n} of ${posts} posts</span><span>${pct}</span></div>`
+          + `<div style="color:#b0b3b8;font-variant-numeric:tabular-nums">Backgrounds removed ${plained}</div>`;
+        stats.querySelectorAll('div > span:nth-child(even)').forEach(s => { s.style.textAlign = 'right'; });
+      }
+      // above the counter, right edges lined up, kept on screen
+      const b = box.getBoundingClientRect(), w = stats.offsetWidth;
+      stats.style.left = Math.max(4, Math.min(b.right - w, innerWidth - 4 - w)) + 'px';
+      stats.style.top = (b.top - stats.offsetHeight - 8 >= 4 ? b.top - stats.offsetHeight - 8 : b.bottom + 8) + 'px';
+    }
   };
+  // tap the percentage for the breakdown (the menu is separate)
+  const stats = document.createElement('div');
+  stats.style.cssText = 'position:fixed;z-index:10000;display:none;box-sizing:border-box;max-width:calc(100vw - 8px);padding:6px 10px;border-radius:8px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#fff;font:12px/1.5 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6)';
+  const toggleStats = open => {
+    if (!stats.isConnected) document.body.appendChild(stats);
+    stats.style.display = (open === undefined ? stats.style.display !== 'block' : open) ? 'block' : 'none';
+    show();
+  };
+  box.addEventListener('click', e => { e.stopPropagation(); if (moved) { moved = false; return; } if (panel.style.display === 'block') { panel.style.display = 'none'; place(); } toggleStats(); });
+  // it closes on another tap of the percentage, a tap anywhere else that reaches us, or scrolling the feed
+  addEventListener('pointerdown', e => { if (stats.style.display === 'block' && !stats.contains(e.target) && !box.contains(e.target)) toggleStats(false); }, true);
+  addEventListener('scroll', () => { if (stats.style.display === 'block') toggleStats(false); }, { passive: true });
 
   // ---- debug labels ----
   const tag = (el, msg) => {
@@ -355,7 +380,7 @@
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v58</span>';
+  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v59</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
@@ -407,7 +432,7 @@
   let taps = [];
   head.lastElementChild.addEventListener('click', () => { const now = Date.now(); taps = taps.filter(t => now - t < 2000).concat(now); if (taps.length >= 5) { taps = []; toggleDev(); } });
   syncDev(true);
-  gear.addEventListener('click', e => { e.stopPropagation(); if (moved) { moved = false; return; } panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; show(); place(); });
+  gear.addEventListener('click', e => { e.stopPropagation(); if (moved) { moved = false; return; } panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; if (panel.style.display === 'block') toggleStats(false); show(); place(); });
   // ---- drag the button and counter (together) out of the way; the spot is remembered in this browser ----
   const POS = 'fbc-pos-mobile';
   let pos = { x: 0, y: 0 }, moved = false, drag = null;
@@ -471,21 +496,21 @@
   const quickCheck = post => {
     const nt = nodeTexts(post, 6);
     if (nt[0] === 'Reels') { // Reels tray with a plain "Reels" heading
-      if (!post.dataset.fbmcKind) reels++;
+      if (!post.dataset.fbmcKind) { posts++; reels++; }
       tag(post, 'REELS');
       act(post, 'reels', '');
       return true;
     }
     if (nt[0] && SUGG_BLOCK.test(nt[0])) { // suggestion carousel heading
-      if (!post.dataset.fbmcKind) sugg++;
+      if (!post.dataset.fbmcKind) { posts++; sugg++; }
       tag(post, 'SUGGESTIONS: ' + nt[0]);
       act(post, 'suggestions', nt[0].match(SUGG_BLOCK)[1]);
       return true;
     }
     // "Ad" as its own text piece right after the name: catches ads before Facebook draws them
-    const ai = nt.findIndex((x, i) => i > 0 && i < 4 && /^(Ad|Sponsored)( ?[\u00b7\u2022])?$/.test(x));
-    if (ai > 0) {
-      const nm = nt.slice(0, ai).join(' ');
+    const adAt = nt.findIndex((x, i) => i > 0 && i < 4 && /^(Ad|Sponsored)( ?[\u00b7\u2022])?$/.test(x));
+    if (adAt > 0) {
+      const nm = nt.slice(0, adAt).join(' ');
       if (!post.dataset.fbmcKind) { posts++; ads++; }
       tag(post, 'AD (text): ' + nm);
       if (kept.has(postKey(post))) { post.dataset.fbmcKind = 'ad'; post.dataset.fbmc = 'shown'; return true; }
@@ -499,7 +524,7 @@
     if (quickCheck(post)) return;
     const ls = headerLines(post);
     if (ls[0] && SUGG_BLOCK.test(ls[0])) { // a suggestion carousel: one heading line, no name/date line
-      if (!post.dataset.fbmcKind) sugg++;
+      if (!post.dataset.fbmcKind) { posts++; sugg++; }
       tag(post, 'SUGGESTIONS: ' + ls[0]);
       act(post, 'suggestions', ls[0].match(SUGG_BLOCK)[1]);
       return;
@@ -522,14 +547,14 @@
     // Facebook's own "AI content" label, on the line under the name ("Joe Miller · AI content · 16h"),
     // also on a post shared inside another (further down than the header lines reach)
     if (kind === 'post' && opt.ai && (ls.slice(1, 4).some(l => AI_LABEL.test(l)) || hasAiLabel(post))) {
-      if (!post.dataset.fbmcKind) { posts++; sugg++; }
+      if (!post.dataset.fbmcKind) { posts++; ai++; }
       tag(post, 'AI: ' + ls.slice(0, 2).join(' / '));
       if (kept.has(postKey(post))) { post.dataset.fbmcKind = 'ai'; post.dataset.fbmc = 'shown'; return; }
       act(post, 'ai', name);
       return;
     }
     if (kind === 'post' && opt.strangers && stranger(ls)) {
-      if (!post.dataset.fbmcKind) { posts++; sugg++; }
+      if (!post.dataset.fbmcKind) { posts++; strangers++; }
       tag(post, 'STRANGER: ' + ls.slice(0, 2).join(' / '));
       if (kept.has(postKey(post))) { post.dataset.fbmcKind = 'strangers'; post.dataset.fbmc = 'shown'; return; }
       act(post, 'strangers', name);
@@ -561,34 +586,82 @@
   };
 
   // ---- text posts on a colored/picture background: show the words as a normal post instead ----
+  // undo one: put that post's colors back (it stays that way until the tab closes)
+  const unplain = box => {
+    const p = box.querySelector(':scope > .fbmc-plain');
+    if (p) p.remove();
+    [...box.children].forEach(k => { k.style.display = k.dataset.fbmcPlainDisp || ''; delete k.dataset.fbmcPlainDisp; });
+    for (let e = box; e; e = e.parentElement) { if ('fbmcPlainH' in e.dataset) { e.style.height = e.dataset.fbmcPlainH; delete e.dataset.fbmcPlainH; } if (e.dataset.trackingDurationId) break; }
+    if (box.dataset.fbmcPlainBg) { try { const [bi, bc] = JSON.parse(box.dataset.fbmcPlainBg); box.style.backgroundImage = bi; box.style.backgroundColor = bc; } catch (e) {} delete box.dataset.fbmcPlainBg; }
+    delete box.dataset.fbmcPlain;
+  };
+  const toPlain = (box, words) => {
+    const oldH = box.getBoundingClientRect().height;
+    [...box.children].forEach(k => { k.dataset.fbmcPlainDisp = k.style.display; k.style.display = 'none'; });
+    const c = palette();
+    const p = document.createElement('div');
+    p.className = 'fbmc-plain';
+    p.style.cssText = 'color:' + c.text + ';font:18px/1.33 system-ui,sans-serif;padding:0 12px 10px;white-space:pre-wrap;overflow-wrap:anywhere';
+    // top-right: a small note that the colors were taken off, with Undo
+    const note = document.createElement('div');
+    note.style.cssText = 'display:flex;justify-content:flex-end;align-items:center;gap:6px;padding:4px 0 2px;font:italic 12px/20px system-ui,sans-serif;color:' + (c.card === '#242526' ? '#7c7f84' : '#8a8d91');
+    note.innerHTML = '<span>Background removed</span><span role="button" style="flex:none;padding:0 8px;border-radius:6px;font-style:normal;cursor:pointer"></span>';
+    const btn = note.lastChild;
+    btn.textContent = 'Undo'; btn.style.background = c.card === '#242526' ? '#303132' : '#eef0f2';
+    const words_ = document.createElement('div'); words_.textContent = words;
+    p.append(note, words_);
+    box.append(p); box.dataset.fbmcPlain = '1'; plained++;
+    // the box may paint the colors itself: take its own background off too
+    box.dataset.fbmcPlainBg = JSON.stringify([box.style.backgroundImage, box.style.backgroundColor]); box.style.backgroundImage = 'none'; box.style.backgroundColor = 'transparent';
+    box.dataset.fbmcPlainH = box.style.height; box.style.height = 'auto';
+    // Facebook sizes every box on the phone page by hand, so shrink the post's boxes by what we saved
+    const delta = oldH - box.getBoundingClientRect().height;
+    for (let e = box.parentElement; e; e = e.parentElement) { const h = parseFloat(e.style.height); if (h) { e.dataset.fbmcPlainH = e.style.height; e.style.height = (h - delta) + 'px'; } if (e.dataset.trackingDurationId) break; }
+    // taps inside the feed don't reach it, so it uses the same outside tap targets as the hidden-post bars
+    let done = false;
+    undoOf.set(btn, () => { if (done) return; done = true; box.dataset.fbmcPlainKept = '1'; unplain(box); });
+    undoBtns.add(btn); trackUndo();
+  };
   const plain = () => {
-    document.querySelectorAll('[data-fbmc-plain]').forEach(box => {
-      const p = box.querySelector(':scope > .fbmc-plain');
-      if (p && opt.plain) return;
-      if (p) p.remove();
-      [...box.children].forEach(k => { k.style.display = k.dataset.fbmcPlainDisp || ''; delete k.dataset.fbmcPlainDisp; });
-      for (let e = box; e; e = e.parentElement) { if ('fbmcPlainH' in e.dataset) { e.style.height = e.dataset.fbmcPlainH; delete e.dataset.fbmcPlainH; } if (e.dataset.trackingDurationId) break; }
-      delete box.dataset.fbmcPlain;
-    });
-    if (!opt.plain) return;
-    document.querySelectorAll('[data-tracking-duration-id] [data-mcomponent="TextArea"]').forEach(ta => {
-      const box = ta.parentElement, img = box.querySelector(':scope > [data-mcomponent="ImageArea"]');
-      if (box.dataset.fbmcPlain || !img || !(parseFloat(ta.style.marginTop) < 0)) return; // words drawn on top of a picture
-      const ir = img.getBoundingClientRect(), tw = ta.getBoundingClientRect().width, sp = ta.querySelector('span');
-      if (ir.width < innerWidth * 0.9 || tw < ir.width * 0.5 || !sp || parseFloat(getComputedStyle(sp).fontSize) < 22) return; // big words across a full-width picture, not a photo label
+    if (!opt.plain) { document.querySelectorAll('[data-fbmc-plain]').forEach(unplain); document.querySelectorAll('[data-fbmc-plain-seen]').forEach(e => delete e.dataset.fbmcPlainSeen); return; }
+    document.querySelectorAll('[data-tracking-duration-id] [data-mcomponent="TextArea"]:not([data-fbmc-plain-seen])').forEach(ta => {
+      const sp = ta.querySelector('span'), tr = ta.getBoundingClientRect();
+      if (!sp || !tr.width) return; // not drawn yet; look again next pass
       const words = ta.innerText.trim();
       if (!/\p{L}/u.test(words)) return;
-      const oldH = box.getBoundingClientRect().height;
-      [...box.children].forEach(k => { k.dataset.fbmcPlainDisp = k.style.display; k.style.display = 'none'; });
-      const p = document.createElement('div');
-      p.className = 'fbmc-plain';
-      p.textContent = words;
-      p.style.cssText = 'color:' + palette().text + ';font:18px/1.33 system-ui,sans-serif;padding:4px 12px 10px;white-space:pre-wrap;overflow-wrap:anywhere';
-      box.append(p); box.dataset.fbmcPlain = '1';
-      box.dataset.fbmcPlainH = box.style.height; box.style.height = 'auto';
-      // Facebook sizes every box on the phone page by hand, so shrink the post's boxes by what we saved
-      const delta = oldH - box.getBoundingClientRect().height;
-      for (let e = box.parentElement; e; e = e.parentElement) { const h = parseFloat(e.style.height); if (h) { e.dataset.fbmcPlainH = e.style.height; e.style.height = (h - delta) + 'px'; } if (e.dataset.trackingDurationId) break; }
+      const post = ta.closest('[data-tracking-duration-id]');
+      const big = parseFloat(getComputedStyle(sp).fontSize) >= 22;
+      let box = null;
+      // 1) words drawn on top of a full-width picture
+      const img = ta.parentElement.querySelector(':scope > [data-mcomponent="ImageArea"]');
+      if (img && parseFloat(ta.style.marginTop) < 0 && big) {
+        const ir = img.getBoundingClientRect();
+        if (ir.width >= innerWidth * 0.9 && tr.width >= ir.width * 0.5) box = ta.parentElement;
+      }
+      // 2) words on a colored or gradient background: a full-width box just above the words that paints its own background
+      if (!box && big) {
+        const postBg = getComputedStyle(post).backgroundColor;
+        for (let e = ta, n = 0; e && e !== post && n < 5; e = e.parentElement, n++) {
+          const cs = getComputedStyle(e);
+          const painted = cs.backgroundImage !== 'none' || (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent' && cs.backgroundColor !== postBg);
+          if (painted && e.getBoundingClientRect().width >= innerWidth * 0.9) { box = e; break; }
+        }
+      }
+      // 3) words over a full-width picture somewhere behind them (some colored backgrounds are a picture, not a CSS background)
+      if (!box && big) {
+        for (let e = ta.parentElement, n = 0; e && e !== post && n < 4 && !box; e = e.parentElement, n++) {
+          for (const pic of e.querySelectorAll(':scope > [data-mcomponent="ImageArea"], :scope > img')) {
+            const ir = pic.getBoundingClientRect();
+            if (ir.width >= innerWidth * 0.9 && ir.top <= tr.top + 4 && ir.bottom >= tr.bottom - 4) { box = e; break; }
+          }
+        }
+      }
+      // pictures and colors can arrive after the words: look again on the next few passes before giving up on this post
+      if (!box) { const tries = (+ta.dataset.fbmcPlainTries || 0) + 1; ta.dataset.fbmcPlainTries = tries; if (tries < 8) { if (opt.debug) tag(post, 'TEXT plain? not yet (' + tries + '): font ' + getComputedStyle(sp).fontSize); return; } }
+      ta.dataset.fbmcPlainSeen = '1';
+      if (opt.debug) tag(post, 'TEXT ' + (box ? 'ON COLOR -> plain' : 'plain? no') + ': font ' + getComputedStyle(sp).fontSize + (img ? ' img' : '') + ' "' + words.slice(0, 30) + '"');
+      if (!box || box.dataset.fbmcPlain || box.dataset.fbmcPlainKept) return;
+      toPlain(box, words);
     });
   };
 
@@ -631,7 +704,7 @@
     // Reels tray
     document.querySelectorAll('[aria-label^="reels" i]').forEach(r => {
       const post = r.closest('[data-tracking-duration-id]');
-      if (post && !post.dataset.fbmc) { if (!post.dataset.fbmcKind) reels++; act(post, 'reels', ''); tag(post, 'REELS'); }
+      if (post && !post.dataset.fbmc) { if (!post.dataset.fbmcKind) { posts++; reels++; } act(post, 'reels', ''); tag(post, 'REELS'); }
     });
     // Posts: blocks directly inside the feed scroller
     document.querySelectorAll('[data-type="vscroller"] > [data-tracking-duration-id]:not([data-fbmc])').forEach(check);
