@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         FB Cleaner (Mobile)
-// @version      62
+// @version      63
 // @namespace    https://github.com/therealgulltop/fb-cleaner
 // @description  Collapses Facebook ads, suggestions and Reels on the mobile layout, on screen only.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/fb-cleaner/main/fb-cleaner-mobile.user.js
@@ -17,12 +17,12 @@
 // Tap the FB Cleaner logo (bottom-right) for settings; they're remembered in this browser.
 (() => {
   if (document.documentElement.dataset.fbmcRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.fbmcRunning = '62';
+  document.documentElement.dataset.fbmcRunning = '63';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
     if (!document.querySelector('[data-mcomponent]')) return; // only check on this script's own layout, so the other script's copy doesn't nag here
-    const VER = 62, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
+    const VER = 63, KEY = 'fbc-latest-fb-cleaner-mobile.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.fbc-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -171,8 +171,15 @@
       const col = (rt.match(/"collectionToken":"(YXBwX2NvbGxlY3Rpb246[A-Za-z0-9=]+)"/) || [])[1];
       let following = 0;
       if (col) { cur = null; do { const c = (await gql('40194301110185320', { count: 8, cursor: cur, scale: 1, search: null, id: col })).node.pageItems; c.edges.forEach(e => { const n = e.node.title && e.node.title.text; if (n) { names.add(norm(n)); following++; } }); cur = c.page_info.has_next_page ? c.page_info.end_cursor : null; await pause(150); } while (cur); }
+      // your groups, so "Brian was live in Cinci Live Music" counts as yours (both the groups you run and the ones you're in)
+      let groups = 0;
+      for (const listType of ['ADMIN_MODERATOR_GROUPS', 'NON_ADMIN_MODERATOR_GROUPS']) {
+        cur = null;
+        try { do { const l = (await gql('9658982227546884', { count: 20, cursor: cur, listType, scale: 1 })).viewer.groups_tab.tab_groups_list; l.edges.forEach(e => { if (e.node.name) { names.add(norm(e.node.name)); groups++; } }); cur = l.page_info.has_next_page ? l.page_info.end_cursor : null; await pause(150); } while (cur); }
+        catch (e) { groups = null; break; }
+      }
       if (friends < 1) throw new Error('empty friends list');
-      known = { at: Date.now(), v: document.documentElement.dataset.fbmcRunning, self: !!self, friends, following: col ? following : null, names: [...names], followErr };
+      known = { at: Date.now(), v: document.documentElement.dataset.fbmcRunning, self: !!self, friends, following: col ? following : null, groups, names: [...names], followErr };
       knownSet = names;
       document.querySelectorAll('[data-fbmc="post"]').forEach(p => delete p.dataset.fbmc); // recheck posts already seen
     } catch (e) { known = Object.assign({}, known, { at: Date.now(), v: document.documentElement.dataset.fbmcRunning, error: String(e.message || e).slice(0, 300) }); }
@@ -206,6 +213,8 @@
     const head = norm(ls[0]);
     if (knownSet.has(head)) { whyKnown = 'known'; return false; }
     for (const n of knownSet) if (head.startsWith(n + ' ')) { whyKnown = 'known: ' + n; return false; } // "Jim McNulty is with ...", "Jim McNulty shared a memory"
+    // someone you don't know posting in a group of yours or with someone you know ("Brian was live in Cinci Live Music."); short names don't count here
+    for (const n of knownSet) if (n.length >= 8 && n.includes(' ') && (' ' + head.replace(/[.!]+$/, '') + ' ').includes(' ' + n + ' ')) { whyKnown = 'known: ' + n; return false; }
     return true;
   };
   const headerLines = post => {
@@ -382,7 +391,7 @@
   panel.style.cssText = 'position:fixed;right:12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14);color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
-  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v62</span>';
+  head.innerHTML = '<span style="flex:none;width:20px;height:20px">' + LOGO + '</span><a href="https://blog.throbs.net/fb-cleaner/" target="_blank" rel="noopener" title="About FB Cleaner" style="color:inherit;text-decoration:none">FB Cleaner</a><span style="font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start">Mobile v63</span>';
   const about = head.querySelector('a'); // the name links to FB Cleaner's page
   about.addEventListener('mouseenter', () => { about.style.textDecoration = 'underline'; });
   about.addEventListener('mouseleave', () => { about.style.textDecoration = 'none'; });
@@ -408,7 +417,7 @@
   const ago = t => { const m = Math.round((Date.now() - t) / 6e4); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
   const showKnown = () => {
     if (!knownRow) return;
-    const s = knownBusy ? 'Updating your list...' : !known ? 'List not loaded yet' : known.error ? 'List update failed (' + known.error + ')' : known.friends + ' friends + ' + (known.following === null ? '? ' : known.following + ' ') + 'followed, ' + ago(known.at) + (known.followErr ? ' (followed list failed: ' + known.followErr + ')' : '');
+    const s = knownBusy ? 'Updating your list...' : !known ? 'List not loaded yet' : known.error ? 'List update failed (' + known.error + ')' : known.friends + ' friends + ' + (known.following === null ? '? ' : known.following + ' ') + 'followed' + (known.groups ? ' + ' + known.groups + ' groups' : '') + ', ' + ago(known.at) + (known.followErr ? ' (followed list failed: ' + known.followErr + ')' : '');
     knownRow.innerHTML = '<span></span> <a href="#" style="color:#9a9da2">Refresh</a>';
     knownRow.firstChild.textContent = s;
     knownRow.lastChild.style.display = knownBusy ? 'none' : '';
@@ -420,7 +429,7 @@
   // Its age is shared by every tab, so opening Facebook again doesn't fetch it again.
   const autoKnown = () => {
     try { const s = JSON.parse(localStorage.getItem(KNOWN_KEY) || 'null'); if (s && (!known || s.at > known.at)) { known = s; if (s.names) knownSet = new Set(s.names); showKnown(); } } catch (e) {} // another tab may have fetched it
-    if (document.querySelector('[data-mcomponent]') && opt.strangers && (!known || !known.names || Date.now() - known.at > (known.error ? 18e5 : DAY))) refreshKnown(); };
+    if (document.querySelector('[data-mcomponent]') && opt.strangers && (!known || !known.names || (known.groups === undefined && !known.error) || Date.now() - known.at > (known.error ? 18e5 : DAY))) refreshKnown(); };
   setTimeout(autoKnown, 8000);
   setInterval(autoKnown, 3e5);
   // ---- Debug labels are for the author: the option stays hidden unless you press Ctrl+Alt+D (or tap the version number 5 times) ----
@@ -477,7 +486,7 @@
   addEventListener('resize', place);
   const applySettings = k => {
     if (k === 'debug' && !opt.debug) document.querySelectorAll('.fbmc-dbg').forEach(d => d.remove());
-    if (k === 'debug' || k === 'strangers' || k === 'ai') { document.querySelectorAll('[data-fbmc="post"]').forEach(p => delete p.dataset.fbmc); }
+    if (k === 'debug' || k === 'strangers' || k === 'ai') { document.querySelectorAll('[data-fbmc="post"], [data-fbmc="shown"]').forEach(p => delete p.dataset.fbmc); }
     document.querySelectorAll('[data-fbmc-kind="' + k + '"]').forEach(p => {
       if (opt[k] && p.dataset.fbmc === 'off') delete p.dataset.fbmc; // re-check and collapse on next pass
       if (!opt[k] && p.dataset.fbmc === 'hidden') { const ex = restore.get(p); if (ex) ex(); p.dataset.fbmc = 'off'; }
